@@ -107,10 +107,11 @@ def main():
         print('--quiet ignored')
     if opts.verbose:
         print('--verbose ignored')
-    if True:
-        cmd += [ '--validate-git' ]
+    cmd += [ '--validate-git' ]
 
-    sys.stderr.write('*** Executing JS-based tooling with command: ' + repr(cmd) + '\n\n')
+    sys.stderr.write(
+        f'*** Executing JS-based tooling with command: {repr(cmd)}' + '\n\n'
+    )
     subprocess.check_call(cmd)
 
 if __name__ == '__main__':

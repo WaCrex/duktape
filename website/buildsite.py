@@ -28,9 +28,8 @@ fancy_releaselog = True
 dt_now = datetime.datetime.utcnow()
 
 def readFile(x):
-    f = open(x, 'rb')
-    data = f.read()
-    f.close()
+    with open(x, 'rb') as f:
+        data = f.read()
     return data
 
 def htmlEscape(x):
@@ -55,45 +54,36 @@ def sourceHighlight(x, sourceLang):
     tmp1 = getAutodeleteTempname()
     tmp2 = getAutodeleteTempname()
 
-    f = open(tmp1, 'wb')  # FIXME
-    f.write(x)
-    f.close()
-
+    with open(tmp1, 'wb') as f:
+        f.write(x)
     # FIXME: safer execution
-    os.system('source-highlight -s %s -c highlight.css --no-doc <"%s" >"%s"' % \
-              (sourceLang, tmp1, tmp2))
+    os.system(
+        f'source-highlight -s {sourceLang} -c highlight.css --no-doc <"{tmp1}" >"{tmp2}"'
+    )
 
-    f = open(tmp2, 'rb')
-    res = f.read()
-    f.close()
-
+    with open(tmp2, 'rb') as f:
+        res = f.read()
     return res
 
 def rst2Html(filename):
     tmp1 = getAutodeleteTempname()
 
     # FIXME: safer execution
-    os.system('rst2html "%s" >"%s"' % \
-              (filename, tmp1))
+    os.system(f'rst2html "{filename}" >"{tmp1}"')
 
-    f = open(tmp1, 'rb')
-    res = f.read()
-    f.close()
-
+    with open(tmp1, 'rb') as f:
+        res = f.read()
     return res
 
 def getFileMd5(filename):
     if not os.path.exists(filename):
         return None
-    f = open(filename, 'rb')
-    d = f.read()
-    f.close()
+    with open(filename, 'rb') as f:
+        d = f.read()
     return md5.md5(d).digest().encode('hex')
 
 def stripNewline(x):
-    if len(x) > 0 and x[-1] == '\n':
-        return x[:-1]
-    return x
+    return x[:-1] if len(x) > 0 and x[-1] == '\n' else x
 
 def splitNewlineNoLastEmpty(x):
     assert(x is not None)
@@ -106,10 +96,7 @@ def validateAndParseHtml(data):
     # first parse as xml to get errors out
     ign_soup = BeautifulSoup(data, 'xml')
 
-    # then parse as lenient html, no xml tags etc
-    soup = BeautifulSoup(data, 'lxml')
-
-    return soup
+    return BeautifulSoup(data, 'lxml')
 
 re_stack_line = re.compile(r'^(\[[^\x5d]+\])(?:\s+->\s+(\[[^\x5d]+\]))?(?:\s+(.*?))?\s*$')
 def renderFancyStack(inp_line):
@@ -127,17 +114,15 @@ def renderFancyStack(inp_line):
     if m.group(2) is not None:
         stacks.append(m.group(2))
 
-    res = []
+    res = ['<div class="stack-wrapper">']
 
-    res.append('<div class="stack-wrapper">')
     for idx, stk in enumerate(stacks):
         if idx > 0:
             res.append('<span class="arrow"><b>&rarr;</b></span>')
         res.append('<span class="stack">')
         for part in stk.split(' '):
             part = part.strip()
-            elem_classes = []
-            elem_classes.append('elem')  #FIXME
+            elem_classes = ['elem']
             if len(part) > 0 and part[-1] == '!':
                 part = part[:-1]
                 elem_classes.append('active')
@@ -180,7 +165,7 @@ def renderFancyStack(inp_line):
                 text = part
 
             if 'ellipsis' in elem_classes and use_inline:
-                res.append('<i>' + htmlEscape(text) + '</i>')
+                res.append(f'<i>{htmlEscape(text)}' + '</i>')
             elif 'active' in elem_classes and use_inline:
                 res.append('<b>' + htmlEscape(text) + '</b>')
             else:
@@ -259,8 +244,10 @@ def processApiDoc(doc, testrefs, used_tags):
     res = []
 
     # the 'hidechar' span is to allow browser search without showing the char
-    res.append('<h1 id="%s" class="apih1">' % doc['name'])
-    res.append('<a href="#%s"><span class="hidechar">.</span>%s()</a>' % (doc['name'], doc['name']))
+    res.append(f"""<h1 id="{doc['name']}" class="apih1">""")
+    res.append(
+        f"""<a href="#{doc['name']}"><span class="hidechar">.</span>{doc['name']}()</a>"""
+    )
     if floating_list_tags and len(doc['tags']) > 0:
         # Sort, reverse order because tags are floated to right
         # (visual order is reverse of DOM order).  Sort version
@@ -268,6 +255,7 @@ def processApiDoc(doc, testrefs, used_tags):
 
         def mycmp(a,b):
             return cmp( (a[0].isdigit(), a), (b[0].isdigit(), b) )
+
         p = sorted(doc['tags'], reverse=True, cmp=mycmp)
 
         # 'introduced' is automatically added as a tag now
@@ -282,12 +270,26 @@ def processApiDoc(doc, testrefs, used_tags):
 
         for idx, val in enumerate(p):
             classes = [ 'apitag' ]
-            if val == 'experimental' or val == 'nonportable':
+            if val in ['experimental', 'nonportable']:
                 classes.append('apitagwarn')
             if val == 'protected':
                 classes.append('apitagprotected')
-            res.append('<a class="' + ' '.join(classes) + '" ' +
-                       'href="#' + htmlEscape('taglist-' + val) + '">' + htmlEscape(val) + '</a>')
+            res.append(
+                (
+                    (
+                        (
+                            '<a class="'
+                            + ' '.join(classes)
+                            + '" '
+                            + 'href="#'
+                            + htmlEscape(f'taglist-{val}')
+                        )
+                        + '">'
+                    )
+                    + htmlEscape(val)
+                    + '</a>'
+                )
+            )
     res.append('</h1>')
 
     res.append('<div class="api-call">')
@@ -317,18 +319,13 @@ def processApiDoc(doc, testrefs, used_tags):
         res.append('</pre>')
         res.append('</div>')  # api-part
         res.append('')
-    else:
-        pass
-
     if doc.has_key('stack'):
         p = splitNewlineNoLastEmpty(doc['stack'])
         res.append('<div class="api-part">')
         res.append('<h2 class="api-stack">Stack</h2>')
         assert(len(p) > 0)
         for line in p:
-            res.append('<pre class="stack">' + \
-                       '%s' % htmlEscape(line) + \
-                       '</pre>')
+            res.append(f'<pre class="stack">{htmlEscape(line)}</pre>')
         res.append('</div>')
         res.append('')
     else:
@@ -380,7 +377,7 @@ def processApiDoc(doc, testrefs, used_tags):
         res.append('<h2 class="api-seealso">See also</h2>')
         res.append('<ul>')
         for i in p:
-            res.append('<li><a href="#%s">%s</a></li>' % (htmlEscape(i), htmlEscape(i)))
+            res.append(f'<li><a href="#{htmlEscape(i)}">{htmlEscape(i)}</a></li>')
         res.append('</ul>')
         res.append('</div>')  # api-part
         res.append('')
@@ -391,7 +388,7 @@ def processApiDoc(doc, testrefs, used_tags):
         if testrefs.has_key(doc['name']):
             res.append('<ul>')
             for i in testrefs[doc['name']]:
-                res.append('<li>%s</li>' % htmlEscape(i))
+                res.append(f'<li>{htmlEscape(i)}</li>')
             res.append('</ul>')
         else:
             res.append('<p>None.</p>')
@@ -427,17 +424,16 @@ def processApiDoc(doc, testrefs, used_tags):
     return res
 
 def processRawDoc(filename):
-    f = open(filename, 'rb')
-    res = []
-    for line in f.readlines():
-        line = stripNewline(line)
-        res.append(line)
-    f.close()
+    with open(filename, 'rb') as f:
+        res = []
+        for line in f:
+            line = stripNewline(line)
+            res.append(line)
     res.append('')
     return res
 
 def transformColorizeCode(soup, cssClass, sourceLang):
-    for elem in soup.select('pre.' + cssClass):
+    for elem in soup.select(f'pre.{cssClass}'):
         input_str = elem.string
         if len(input_str) > 0 and input_str[0] == '\n':
             # hack for leading empty line
@@ -469,7 +465,7 @@ def transformFancyStacks(soup):
         elem.replace_with(new_elem)
 
 def transformRemoveClass(soup, cssClass):
-    for elem in soup.select('.' + cssClass):
+    for elem in soup.select(f'.{cssClass}'):
         elem.extract()
 
 def transformReadIncludes(soup, includeDirs):
@@ -482,12 +478,11 @@ def transformReadIncludes(soup, includeDirs):
         for incdir in includeDirs:
             fn = os.path.join(incdir, filename)
             if os.path.exists(fn):
-                f = open(fn, 'rb')
-                d = f.read()
-                f.close()
+                with open(fn, 'rb') as f:
+                    d = f.read()
                 break
         if d is None:
-            raise Exception('cannot find include file: ' + repr(filename))
+            raise Exception(f'cannot find include file: {repr(filename)}')
 
         if filename.endswith('.html'):
             new_elem = BeautifulSoup(d, 'lxml').div
@@ -521,7 +516,7 @@ def transformAddAutoAnchorsNumbered(soup):
     changes = []
 
     def _proc(root, state):
-        idx = hdr_tags.get(root.name, None)
+        idx = hdr_tags.get(root.name)
         if idx is None:
             return
 
@@ -608,7 +603,7 @@ def transformAddAutoAnchorsNamed(soup):
             continue
         e_id = elem['id']
         if ids.has_key(e_id):
-            print('WARNING: duplicate id %s' % e_id)
+            print(f'WARNING: duplicate id {e_id}')
         ids[e_id] = True
 
     # add automatic anchors for every other heading, with priority in
@@ -620,7 +615,9 @@ def transformAddAutoAnchorsNamed(soup):
             e_name = elem.text
             a_name = findAutoName(e_name)
             if ids.has_key(a_name):
-                print('WARNING: cannot generate automatic anchor name for %s (already exists)' % e_name)
+                print(
+                    f'WARNING: cannot generate automatic anchor name for {e_name} (already exists)'
+                )
                 continue
             ids[a_name] = True
             elem['id'] = a_name
@@ -667,10 +664,8 @@ def scanApiCalls(apitestdir):
         if os.path.splitext(filename)[1] != '.c':
             continue
 
-        f = open(os.path.join(apitestdir, filename))
-        data = f.read()
-        f.close()
-
+        with open(os.path.join(apitestdir, filename)) as f:
+            data = f.read()
         apicalls = re_api_call.findall(data)
         for i in apicalls:
             if not res.has_key(i):
@@ -678,23 +673,26 @@ def scanApiCalls(apitestdir):
             if filename not in res[i]:
                 res[i].append(filename)
 
-    for k in res.keys():
-        res[k].sort()
+    for v in res.values():
+        v.sort()
 
     return res
 
 def createTagIndex(api_docs, used_tags):
-    res = []
-    res.append('<h1 id="bytag">API calls by tag</h1>')
-
+    res = ['<h1 id="bytag">API calls by tag</h1>']
     for tag in used_tags:
-        res.append('<h2 id="taglist-' + htmlEscape(tag) + '">' + htmlEscape(tag) + '</h2>')
-        res.append('<ul class="taglist">')
+        res.extend(
+            (
+                f'<h2 id="taglist-{htmlEscape(tag)}">{htmlEscape(tag)}</h2>',
+                '<ul class="taglist">',
+            )
+        )
         for doc in api_docs:
-            for i in doc['tags']:
-                if i != tag:
-                    continue
-                res.append('<li><a href="#%s">%s</a></li>' % (htmlEscape(doc['name']), htmlEscape(doc['name'])))
+            res.extend(
+                f"""<li><a href="#{htmlEscape(doc['name'])}">{htmlEscape(doc['name'])}</a></li>"""
+                for i in doc['tags']
+                if i == tag
+            )
         res.append('</ul>')
 
     return res
@@ -894,10 +892,8 @@ def generateDownloadPage(releases_filename):
         releaselog_elem = down_soup.select('#releaselog')[0]
         pre_elem = down_soup.new_tag('pre')
         releaselog_elem.append(pre_elem)
-        f = open(releases_filename, 'rb')
-        pre_elem.string = f.read().decode('utf-8')
-        f.close()
-
+        with open(releases_filename, 'rb') as f:
+            pre_elem.string = f.read().decode('utf-8')
     # automatic md5sums for downloadable files
     # <tr><td class="reldate">2013-09-21</td>
     #     <td class="filename"><a href="duktape-0.6.0.tar.xz">duktape-0.6.0.tar.xz</a></td>

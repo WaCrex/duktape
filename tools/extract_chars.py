@@ -25,54 +25,52 @@ import dukutil
 def read_unicode_data(unidata, catsinc, catsexc, filterfunc):
     "Read UnicodeData.txt, including lines matching catsinc unless excluded by catsexc or filterfunc."
     res = []
-    f = open(unidata, 'rb')
+    with open(unidata, 'rb') as f:
+        def filter_none(cp):
+            return True
 
-    def filter_none(cp):
-        return True
-    if filterfunc is None:
-        filterfunc = filter_none
+        if filterfunc is None:
+            filterfunc = filter_none
 
-    # The Unicode parsing is slow enough to warrant some speedups.
-    exclude_cat_exact = {}
-    for cat in catsexc:
-        exclude_cat_exact[cat] = True
-    include_cat_exact = {}
-    for cat in catsinc:
-        include_cat_exact[cat] = True
-
-    for line in f:
-        #line = line.strip()
-        parts = line.split(';')
-
-        codepoint = parts[0]
-        if not filterfunc(long(codepoint, 16)):
-            continue
-
-        category = parts[2]
-        if exclude_cat_exact.has_key(category):
-            continue  # quick reject
-
-        rejected = False
+        # The Unicode parsing is slow enough to warrant some speedups.
+        exclude_cat_exact = {}
         for cat in catsexc:
-            if category.startswith(cat) or codepoint == cat:
-                rejected = True
-                break
-        if rejected:
-            continue
-
-        if include_cat_exact.has_key(category):
-            res.append(line)
-            continue
-
-        accepted = False
+            exclude_cat_exact[cat] = True
+        include_cat_exact = {}
         for cat in catsinc:
-            if category.startswith(cat) or codepoint == cat:
-                accepted = True
-                break
-        if accepted:
-            res.append(line)
+            include_cat_exact[cat] = True
 
-    f.close()
+        for line in f:
+            #line = line.strip()
+            parts = line.split(';')
+
+            codepoint = parts[0]
+            if not filterfunc(long(codepoint, 16)):
+                continue
+
+            category = parts[2]
+            if exclude_cat_exact.has_key(category):
+                continue  # quick reject
+
+            rejected = False
+            for cat in catsexc:
+                if category.startswith(cat) or codepoint == cat:
+                    rejected = True
+                    break
+            if rejected:
+                continue
+
+            if include_cat_exact.has_key(category):
+                res.append(line)
+                continue
+
+            accepted = False
+            for cat in catsinc:
+                if category.startswith(cat) or codepoint == cat:
+                    accepted = True
+                    break
+            if accepted:
+                res.append(line)
 
     # Sort based on Unicode codepoint
     def mycmp(a,b):
@@ -97,13 +95,9 @@ def scan_ranges(lines):
         n = long(t[0], 16)
         if range_start is None:
             range_start = n
-        else:
-            if n == prev + 1:
-                # continue range
-                pass
-            else:
-                ranges.append((range_start, prev))
-                range_start = n
+        elif n != prev + 1:
+            ranges.append((range_start, prev))
+            range_start = n
         prev = n
 
     if range_start is not None:
@@ -122,7 +116,7 @@ def generate_png(lines, fname):
         m[n] = 1
 
     codepoints = 0x10ffff + 1
-    width = int(256)
+    width = 256
     height = int(math.ceil(float(codepoints) / float(width)))
     im = Image.new('RGB', (width, height))
     black = (0,0,0)
@@ -303,22 +297,19 @@ def main():
     if opts.exclude_categories != 'NONE':
         catsexc = opts.exclude_categories.split(',')
 
-    print 'CATSEXC: %s' % repr(catsexc)
-    print 'CATSINC: %s' % repr(catsinc)
-
+    parser = optparse.OptionParser()
+    parser = optparse.OptionParser()
     # pseudocategories
     filter_ascii = ('ASCII' in catsexc)
     filter_nonbmp = ('NONBMP' in catsexc)
 
     # Read raw result
     def filter1(x):
-        if filter_ascii and x <= 0x7f:
-            # exclude ascii
-            return False
-        if filter_nonbmp and x >= 0x10000:
-            # exclude non-bmp
-            return False
-        return True
+        return (
+            False
+            if filter_ascii and x <= 0x7F
+            else not filter_nonbmp or x < 0x10000
+        )
 
     print('read unicode data')
     uni_filtered = read_unicode_data(unidata, catsinc, catsexc, filter1)
@@ -349,34 +340,27 @@ def main():
     #matchtable1 = generate_match_table1(ranges)
     #matchtable2 = generate_match_table2(ranges)
     matchtable3, freq = generate_match_table3(ranges)
-    #print 'match table: %s' % repr(matchtable3)
-    print 'match table length: %d bytes' % len(matchtable3)
-    print 'encoding freq:'
+    parser = optparse.OptionParser()
+    parser = optparse.OptionParser()
     for i in xrange(len(freq)):
         if freq[i] == 0:
             continue
-        print '  %6d: %d' % (i, freq[i])
-
     print('')
-    print('MATCH C TABLE -> file %s' % repr(opts.out_header))
+    print(f'MATCH C TABLE -> file {repr(opts.out_header)}')
 
     # Create C source and header files
     genc = dukutil.GenerateC()
     genc.emitHeader('extract_chars.py')
     genc.emitArray(matchtable3, opts.table_name, size=len(matchtable3), typename='duk_uint8_t', intvalues=True, const=True)
     if opts.out_source is not None:
-        f = open(opts.out_source, 'wb')
-        f.write(genc.getString())
-        f.close()
-
+        with open(opts.out_source, 'wb') as f:
+            f.write(genc.getString())
     genc = dukutil.GenerateC()
     genc.emitHeader('extract_chars.py')
     genc.emitLine('extern const duk_uint8_t %s[%d];' % (opts.table_name, len(matchtable3)))
     if opts.out_header is not None:
-        f = open(opts.out_header, 'wb')
-        f.write(genc.getString())
-        f.close()
-
+        with open(opts.out_header, 'wb') as f:
+            f.write(genc.getString())
     # Image (for illustrative purposes only)
     if opts.out_png is not None:
         generate_png(uni_filtered, opts.out_png)

@@ -41,9 +41,9 @@ def strDecode(x):
     # is close enough to C and ECMAScript so use eval for now.
 
     try:
-        return eval('u' + x)  # interpret as unicode string
+        return eval(f'u{x}')
     except:
-        sys.stderr.write('Failed to parse: ' + repr(x) + ', ignoring\n')
+        sys.stderr.write(f'Failed to parse: {repr(x)}' + ', ignoring\n')
         return None
 
 def scan(f, fn):
@@ -55,16 +55,15 @@ def scan(f, fn):
         use_vardecl = False
         use_varassign = False
         use_propref = False
-        use_strlit_dquot = True
         use_strlit_squot = False
     else:
         use_funcname = True
         use_vardecl = True
         use_varassign = True
         use_propref = True
-        use_strlit_dquot = True
         use_strlit_squot = True
 
+    use_strlit_dquot = True
     for line in f:
         # Assume input data is UTF-8
         line = line.decode('utf-8')
@@ -84,10 +83,7 @@ def scan(f, fn):
         if use_propref:
             for m in re_propref.finditer(line):
                 parts = m.group(1).split('.')
-                if re_digits.match(parts[0]) is not None:
-                    # Probably a number ('4.0' or such)
-                    pass
-                else:
+                if re_digits.match(parts[0]) is None:
                     for part in parts:
                         strmap[part] = True
 
@@ -105,10 +101,8 @@ def scan(f, fn):
 
 def main():
     for fn in sys.argv[1:]:
-        f = open(fn, 'rb')
-        scan(f, fn)
-        f.close()
-
+        with open(fn, 'rb') as f:
+            scan(f, fn)
     strs = []
     strs_base64 = []
     doc = {
@@ -126,7 +120,7 @@ def main():
         strs.append(s)
         t = s.encode('utf-8').encode('base64')
         if len(t) > 0 and t[-1] == '\n':
-            t = t[0:-1]
+            t = t[:-1]
         strs_base64.append(t)
 
     print(json.dumps(doc, indent=4, ensure_ascii=True, sort_keys=True))

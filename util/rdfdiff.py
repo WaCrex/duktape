@@ -20,10 +20,10 @@ def main():
     with open(sys.argv[2]) as f:
         d2 = f.read()
 
-    print('Loading graph 1 from ' + sys.argv[1])
+    print(f'Loading graph 1 from {sys.argv[1]}')
     g1 = Graph().parse(format='n3', data=d1)
 
-    print('Loading graph 2 from ' + sys.argv[2])
+    print(f'Loading graph 2 from {sys.argv[2]}')
     g2 = Graph().parse(format='n3', data=d2)
 
     iso1 = to_isomorphic(g1)

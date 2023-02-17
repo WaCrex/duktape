@@ -141,10 +141,9 @@ rejected_plain_identifiers_list = [
     'DUK_MEMSET',
     'DUK_MEMZERO'
 ]
-rejected_plain_identifiers = {}
-for id in rejected_plain_identifiers_list:
-    rejected_plain_identifiers[id] = True
-
+rejected_plain_identifiers = {
+    id: True for id in rejected_plain_identifiers_list
+}
 debuglog_wrappers = {
     'DUK_DPRINT': 'DUK_D',
     'DUK_DDPRINT': 'DUK_DD',
@@ -173,7 +172,7 @@ def repl_c(m):
     tmp = re.sub(re_not_newline, '', m.group(0))
     if tmp == '':
         tmp = ' '  # avoid /**/
-    return '/*' + tmp + '*/'
+    return f'/*{tmp}*/'
 def repl_cpp(m):
     return '// removed\n'
 def repl_dquot(m):
@@ -204,7 +203,7 @@ def removeExpectStrings(data):
         tmp = re.sub(re_not_newline, '', m.group(0))
         if tmp == '':
             tmp = ' '  # avoid /*======*/
-        return '/*===' + tmp + '===*/'
+        return f'/*==={tmp}===*/'
 
     data = re.sub(re_repl_expect_strings, repl, data)
     return data
@@ -229,7 +228,7 @@ def checkDebugLogCalls(lines, idx, filename):
 
     log_macro = m.group(1)
     log_wrapper = debuglog_wrappers[log_macro]
-    if log_wrapper + '(' in line:
+    if f'{log_wrapper}(' in line:
         return
 
     # exclude '#define DUK_DPRINT...' macros in duk_debug.h
@@ -237,7 +236,7 @@ def checkDebugLogCalls(lines, idx, filename):
         return
 
     # exclude a few comment lines in duk_debug.h
-    if len(line) >= 3 and line[0:3] == ' * ':
+    if len(line) >= 3 and line[:3] == ' * ':
         return
 
     raise Exception('invalid debug log call form')
@@ -255,19 +254,19 @@ def checkTrailingWhitespace(lines, idx, filename):
 
 def checkCarriageReturns(lines, idx, filename):
     line = lines[idx]
-    if not '\x0d' in line:
+    if '\x0d' not in line:
         return
 
     raise Exception('carriage return')
 
 def checkMixedIndent(lines, idx, filename):
     line = lines[idx]
-    if not '\x20\x09' in line:
+    if '\x20\x09' not in line:
         return
 
     # Mixed tab/space are only allowed after non-whitespace characters
     idx = line.index('\x20\x09')
-    tmp = line[0:idx]
+    tmp = line[:idx]
     m = re_only_ws.match(tmp)
     if m is None:
         return
@@ -276,7 +275,7 @@ def checkMixedIndent(lines, idx, filename):
 
 def checkTabIndent(lines, idx, filename):
     line = lines[idx]
-    if not '\x09' in line:
+    if '\x09' not in line:
         return
 
     # Now just checks for presence of TAB characters which is fine for Python
@@ -294,16 +293,16 @@ def checkNonLeadingTab(lines, idx, filename):
 
 def checkFixme(lines, idx, filename):
     line = lines[idx]
-    if not fixmeString in line:
+    if fixmeString not in line:
         return
 
-    raise Exception(fixmeString + ' on line')
+    raise Exception(f'{fixmeString} on line')
 
 def checkIdentifiers(lines, idx, filename):
     line = lines[idx]
     # XXX: this now executes for every line which is pointless
     bn = os.path.basename(filename)
-    excludePlain = (bn[0:5] == 'test-')
+    excludePlain = bn[:5] == 'test-'
 
     for m in re.finditer(re_identifier, line):
         if rejected_plain_identifiers.has_key(m.group(0)):
@@ -322,10 +321,7 @@ def checkNonAscii(lines, idx, filename):
         return
 
     bn = os.path.basename(filename)
-    if bn == 'test-lex-utf8.js':
-        # this specific file is intentionally exempt
-        pass
-    else:
+    if bn != 'test-lex-utf8.js':
         raise Exception('non-ascii character')
 
 def checkNoSymbolVisibility(lines, idx, filename):
@@ -341,13 +337,26 @@ def checkNoSymbolVisibility(lines, idx, filename):
         return
 
     bn = os.path.basename(filename)
-    if not ((bn[-2:] == '.c' or bn[-2:] == '.h' or bn[-5:] == '.h.in') and bn[0:5] != 'test-'):
+    if (
+        bn[-2:] != '.c'
+        and bn[-2:] != '.h'
+        and bn[-5:] != '.h.in'
+        or bn[:5] == 'test-'
+    ):
         # Apply to only specific files in src-input/
         return
 
-    if m.group(1) in allowed_visibility_macros and \
-       not ((m.group(1) != 'DUK_LOCAL' and m.group(1) != 'DUK_LOCAL_DECL') and 'duk__' in m.group(2)) and \
-       not ((m.group(1) == 'DUK_LOCAL' or m.group(1) == 'DUK_LOCAL_DECL') and 'duk__' not in m.group(2)):
+    if (
+        m.group(1) in allowed_visibility_macros
+        and (
+            m.group(1) in ['DUK_LOCAL', 'DUK_LOCAL_DECL']
+            or 'duk__' not in m.group(2)
+        )
+        and (
+            m.group(1) not in ['DUK_LOCAL', 'DUK_LOCAL_DECL']
+            or 'duk__' in m.group(2)
+        )
+    ):
         return
 
     # Previous line may contain the declaration (alone)
@@ -372,12 +381,16 @@ def checkIfdefIfndef(lines, idx, filename):
 def checkLongLongConstants(lines, idx, filename):
     line = lines[idx]
 
-    if not 'LL' in line:
+    if 'LL' not in line:
         return
     for m in re.finditer(re_longlong_constant_hex, line):
-        raise Exception('plain longlong constant, use DUK_U64_CONSTANT or DUK_I64_CONSTANT: ' + str(m.group(0)))
+        raise Exception(
+            f'plain longlong constant, use DUK_U64_CONSTANT or DUK_I64_CONSTANT: {str(m.group(0))}'
+        )
     for m in re.finditer(re_longlong_constant_dec, line):
-        raise Exception('plain longlong constant, use DUK_U64_CONSTANT or DUK_I64_CONSTANT: ' + str(m.group(0)))
+        raise Exception(
+            f'plain longlong constant, use DUK_U64_CONSTANT or DUK_I64_CONSTANT: {str(m.group(0))}'
+        )
 
 def checkCppComment(lines, idx, filename):
     line = lines[idx]
@@ -389,14 +402,12 @@ def checkCppComment(lines, idx, filename):
 
 def checkFloatCompare(lines, idx, filename):
     line = lines[idx]
-    for m in re.finditer(re_float_compare, line):
+    for _ in re.finditer(re_float_compare, line):
         raise Exception('float/double compare, use duk_{double,float}_equals()')
 
 def processFile(filename, checkersRaw, checkersNoCommentsOrLiterals, checkersNoCCommentsOrLiterals, checkersNoExpectStrings):
-    f = open(filename, 'rb')
-    dataRaw = f.read()
-    f.close()
-
+    with open(filename, 'rb') as f:
+        dataRaw = f.read()
     dataNoCommentsOrLiterals = removeAnyCommentsAndLiterals(dataRaw)   # no C/javascript comments, literals removed
     dataNoCCommentsOrLiterals = removeCCommentsAndLiterals(dataRaw)    # no C comments, literals removed
     dataNoExpectStrings = removeExpectStrings(dataRaw)                 # no testcase expect strings

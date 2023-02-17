@@ -88,9 +88,7 @@ def readFile(filename):
     lines = []
 
     with open(filename, 'rb') as f:
-        lineno = 0
-        for line in f:
-            lineno += 1
+        for lineno, line in enumerate(f, start=1):
             if len(line) > 0 and line[-1] == '\n':
                 line = line[:-1]
             lines.append(Line(filename, lineno, line))
@@ -119,15 +117,10 @@ def addAutomaticUndefs(f):
         m = re_def.match(line.data)
         if m is not None:
             #logger.debug('DEFINED: %s' % repr(m.group(1)))
-            defined[m.group(1)] = True
+            defined[m[1]] = True
         m = re_undef.match(line.data)
-        if m is not None:
-            # Could just ignore #undef's here: we'd then emit
-            # reliable #undef's (though maybe duplicates) at
-            # the end.
-            #logger.debug('UNDEFINED: %s' % repr(m.group(1)))
-            if defined.has_key(m.group(1)):
-                del defined[m.group(1)]
+        if m is not None and defined.has_key(m[1]):
+            del defined[m[1]]
 
     # Undefine anything that seems to be left defined.  This not a 100%
     # process because some #undef's might be conditional which we don't
@@ -140,8 +133,8 @@ def addAutomaticUndefs(f):
         f.lines.append(Line(f.filename, len(f.lines) + 1, ''))
         f.lines.append(Line(f.filename, len(f.lines) + 1, '/* automatic undefs */'))
         for k in keys:
-            logger.debug('automatic #undef for ' + k)
-            f.lines.append(Line(f.filename, len(f.lines) + 1, '#undef %s' % k))
+            logger.debug(f'automatic #undef for {k}')
+            f.lines.append(Line(f.filename, len(f.lines) + 1, f'#undef {k}'))
 
 def createCombined(files, prologue_filename, line_directives):
     res = []
@@ -180,7 +173,7 @@ def createCombined(files, prologue_filename, line_directives):
     # source or an include file.  #include directives are handled
     # recursively.
     def processFile(f):
-        logger.debug('Process file: ' + f.filename)
+        logger.debug(f'Process file: {f.filename}')
 
         for line in f.lines:
             if not line.data.startswith('#include'):
@@ -190,7 +183,7 @@ def createCombined(files, prologue_filename, line_directives):
             m = re_inc.match(line.data)
             if m is None:
                 raise Exception('Couldn\'t match #include line: %s' % repr(line.data))
-            incpath = m.group(2)
+            incpath = m[2]
             if incpath in include_excluded:
                 # Specific include files excluded from the
                 # inlining / duplicate suppression process.
@@ -202,7 +195,7 @@ def createCombined(files, prologue_filename, line_directives):
                 # external, based on the assumption that includes are
                 # not behind #if defined() checks.  This is the case for
                 # Duktape (except for the include files excluded).
-                emit('/* #include %s -> already included */' % incpath)
+                emit(f'/* #include {incpath} -> already included */')
                 continue
             included[incpath] = True
 
@@ -211,11 +204,13 @@ def createCombined(files, prologue_filename, line_directives):
 
             incfile = lookupInclude(incpath)
             if incfile is not None:
-                logger.debug('Include considered internal: %s -> %s' % (repr(line.data), repr(incfile)))
-                emit('/* #include %s */' % incpath)
+                logger.debug(
+                    f'Include considered internal: {repr(line.data)} -> {repr(incfile)}'
+                )
+                emit(f'/* #include {incpath} */')
                 processFile(readFile(incfile))
             else:
-                logger.debug('Include considered external: %s' % repr(line.data))
+                logger.debug(f'Include considered external: {repr(line.data)}')
                 emit(line)  # keep as is
 
     for f in files:
@@ -254,7 +249,7 @@ def main():
     files = []
     for fn in sources:
         res = readFile(fn)
-        logger.debug('Add automatic undefs for: ' + fn)
+        logger.debug(f'Add automatic undefs for: {fn}')
         addAutomaticUndefs(res)
         files.append(res)
 

@@ -18,32 +18,31 @@ def main():
     assert(opts.unicode_data is not None)
     assert(opts.output is not None)
 
-    f_in = open(opts.unicode_data, 'rb')
-    f_out = open(opts.output, 'wb')
-    while True:
-        line = f_in.readline()
-        if line == '' or line == '\n':
-            break
-        parts = line.split(';')  # keep newline
-        if parts[1].endswith('First>'):
-            line2 = f_in.readline()
-            parts2 = line2.split(';')
-            if not parts2[1].endswith('Last>'):
-                raise Exception('cannot parse range')
-            cp1 = long(parts[0], 16)
-            cp2 = long(parts2[0], 16)
+    with open(opts.unicode_data, 'rb') as f_in:
+        f_out = open(opts.output, 'wb')
+        while True:
+            line = f_in.readline()
+            if line in ['', '\n']:
+                break
+            parts = line.split(';')  # keep newline
+            if parts[1].endswith('First>'):
+                line2 = f_in.readline()
+                parts2 = line2.split(';')
+                if not parts2[1].endswith('Last>'):
+                    raise Exception('cannot parse range')
+                cp1 = long(parts[0], 16)
+                cp2 = long(parts2[0], 16)
 
-            tmp = parts[1:]
-            tmp[0] = '-""-'
-            suffix = ';'.join(tmp)
-            f_out.write(line)
-            for i in xrange(cp1 + 1, cp2):
-                f_out.write('%04X;%s' % (i, suffix))
-            f_out.write(line2)
-        else:
-            f_out.write(line)
+                tmp = parts[1:]
+                tmp[0] = '-""-'
+                suffix = ';'.join(tmp)
+                f_out.write(line)
+                for i in xrange(cp1 + 1, cp2):
+                    f_out.write('%04X;%s' % (i, suffix))
+                f_out.write(line2)
+            else:
+                f_out.write(line)
 
-    f_in.close()
     f_out.flush()
     f_out.close()
 

@@ -28,9 +28,8 @@ def to_c_string(x):
     return res
 
 def main():
-    f = open(sys.argv[1], 'rb')
-    d = f.read()
-    f.close()
+    with open(sys.argv[1], 'rb') as f:
+        d = f.read()
     meta = json.loads(d)
 
     print('const char *duk_builtin_strings[] = {')
@@ -39,9 +38,9 @@ def main():
     for i in xrange(len(strlist)):
         s = strlist[i]
         if i == len(strlist) - 1:
-            print('    %s' % to_c_string(s.decode('base64')))
+            print(f"    {to_c_string(s.decode('base64'))}")
         else:
-            print('    %s,' % to_c_string(s.decode('base64')))
+            print(f"    {to_c_string(s.decode('base64'))},")
 
     print('};')
 

@@ -23,19 +23,19 @@ def main():
     # Column index (positive or negative) for baseline engine (after filtering).
     baseline_column = 4
 
-    with open(sys.argv[1], 'rb') as f_in, open(sys.argv[2], 'wb') as f_out:
+    with (open(sys.argv[1], 'rb') as f_in, open(sys.argv[2], 'wb') as f_out):
         for line in f_in:
             line = line.strip()
             m = re_line.match(line)
             if m is None:
                 continue
 
-            testname = m.group(1)
+            testname = m[1]
             testnames.append(testname)
 
-            parts = re_part.findall(m.group(2))
+            parts = re_part.findall(m[2])
 
-            if len(headings) == 0:
+            if not headings:
                 for idx in xrange(0, len(parts), 2):
                     headings.append(parts[idx])
 
@@ -78,12 +78,12 @@ tr:nth-child(odd) { background: #eeeeee; }
         f_out.write('<tr>')
         f_out.write('<th></th>')
         for h in headings:
-            f_out.write('<th>' + h + '</th>')
+            f_out.write(f'<th>{h}</th>')
         f_out.write('</tr>\n')
 
         for idx,result in enumerate(results):
             f_out.write('<tr>')
-            f_out.write('<td>' + testnames[idx] + '</td>')
+            f_out.write(f'<td>{testnames[idx]}</td>')
             for column,t in enumerate(result):
                 wraptag = None
                 wrapchars = None
@@ -116,28 +116,21 @@ tr:nth-child(odd) { background: #eeeeee; }
                     elif factor > 1.03:
                         style = 'background-color: #ffeeee'
                         wrapchars = '()'
-                    else:
-                        pass
-
                 if column == baseline_column:
                     style = 'background-color: #eeeeee'
                 #if column not in [ 3, 4 ]:
                 #    style = 'background-color: #eeeeee'
 
-                if t is None:
-                    text = '-'
-                else:
-                    text = '%.2f' % t
-
+                text = '-' if t is None else '%.2f' % t
                 # style doesn't survive in GFM; em/strong does
                 if wrapchars is not None:
-                    text = '%s%s%s' % (wrapchars[0], text, wrapchars[1])
+                    text = f'{wrapchars[0]}{text}{wrapchars[1]}'
                 if wraptag is not None:
-                    text = '<%s>%s</%s>' % (wraptag, text, wraptag)
+                    text = f'<{wraptag}>{text}</{wraptag}>'
                 if icon is not None:
-                    text = '%s %s' % (text, icon)
+                    text = f'{text} {icon}'
 
-                f_out.write('<td style="%s">%s</td>' % (style, text))
+                f_out.write(f'<td style="{style}">{text}</td>')
             f_out.write('</tr>\n')
 
         f_out.write('</table>\n')

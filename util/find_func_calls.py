@@ -24,19 +24,13 @@ re_func_call = re.compile(r'([A-Za-z_][A-Za-z0-9_]+)\(')
 re_string = re.compile(r'"(\\"|[^"])*"')
 
 def stripLineContinuations(x):
-    res = re.sub(re_linecont, ' ', x)
-    #print(res)
-    return res
+    return re.sub(re_linecont, ' ', x)
 
 def stripComments(x):
-    res = re.sub(re_comment, '/*omit*/', x)
-    #print(res)
-    return res
+    return re.sub(re_comment, '/*omit*/', x)
 
 def stripStrings(x):
-    res = re.sub(re_string, '"..."', x)
-    #print(res)
-    return res
+    return re.sub(re_string, '"..."', x)
 
 def findFuncCalls(d, fn):
     res = []
@@ -46,11 +40,10 @@ def findFuncCalls(d, fn):
             # syntax but are not function calls.
             continue
 
-        for m in re_func_call.finditer(line):
-            res.append({
-                'name': m.group(1),
-                'filename': fn
-            })
+        res.extend(
+            {'name': m.group(1), 'filename': fn}
+            for m in re_func_call.finditer(line)
+        )
     return res
 
 def main():

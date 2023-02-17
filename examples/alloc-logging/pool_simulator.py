@@ -32,26 +32,22 @@ def dprint(x):
     sys.stderr.flush()
 
 def readJson(fn):
-    f = open(fn, 'rb')
-    d = f.read()
-    f.close()
+    with open(fn, 'rb') as f:
+        d = f.read()
     return json.loads(d)
 
 def readFile(fn):
-    f = open(fn, 'rb')
-    d = f.read()
-    f.close()
+    with open(fn, 'rb') as f:
+        d = f.read()
     return d
 
 def writeJson(fn, val):
-    f = open(fn, 'wb')
-    f.write(json.dumps(val, indent=4, ensure_ascii=True, sort_keys=True))
-    f.close()
+    with open(fn, 'wb') as f:
+        f.write(json.dumps(val, indent=4, ensure_ascii=True, sort_keys=True))
 
 def writeFile(fn, val):
-    f = open(fn, 'wb')
-    f.write(val)
-    f.close()
+    with open(fn, 'wb') as f:
+        f.write(val)
 
 # Clone a pool config (state), with all runtime fields intact
 def clonePool(pool):
@@ -104,11 +100,13 @@ class PoolSimulator:
             #st['ajs_min'] = None  # min alloc size
             #st['ajs_max'] = None  # max alloc size
             st['heap_index'] = st.get('heap_index', 0)  # ajs specific
-            for i in xrange(cfg['count']):
-                ent = { 'alloc_size': None,
-                        'entry_size': st['size'],
-                        'borrowed': False }  # free
-                ent['pointer'] = nextPtr
+            for _ in xrange(cfg['count']):
+                ent = {
+                    'alloc_size': None,
+                    'entry_size': st['size'],
+                    'borrowed': False,
+                    'pointer': nextPtr,
+                }
                 nextPtr += 1
                 st['entries'].append(ent)
             self.state['pools'].append(st)
@@ -222,10 +220,7 @@ class PoolSimulator:
 
     # Get a list of pool byte sizes.
     def getSizes(self):
-        res = []
-        for p in self.state['pools']:
-            res.append(p['size'])
-        return res
+        return [p['size'] for p in self.state['pools']]
 
     # Get stats from current allocation state.
     def stats(self):
@@ -318,9 +313,8 @@ def processAllocLog(ps, f_log, out_dir, throw_on_oom=True, emit_files=True):
     ptrmap = {}
 
     def writeFile(fn, line):
-        f = open(fn, 'ab')
-        f.write(line + '\n')
-        f.close()
+        with open(fn, 'ab') as f:
+            f.write(line + '\n')
 
     def emitStats():
         global xIndex
@@ -353,10 +347,8 @@ def processAllocLog(ps, f_log, out_dir, throw_on_oom=True, emit_files=True):
         if not emit_files:
             return
 
-        f = open(os.path.join(out_dir, 'state_%d.json' % count), 'wb')
-        f.write(json.dumps(ps.state, indent=4))
-        f.close()
-
+        with open(os.path.join(out_dir, 'state_%d.json' % count), 'wb') as f:
+            f.write(json.dumps(ps.state, indent=4))
         stats = ps.stats()
         for p in stats['byPool']:
             logsize = math.log(p['size'], 2)
@@ -414,27 +406,15 @@ def processAllocLog(ps, f_log, out_dir, throw_on_oom=True, emit_files=True):
                 # oldsize is not needed; don't use because e.g. duk-low
                 # log stats don't provide it
 
-                if parts[1] == 'NULL':
-                    oldptr = nullPtr
-                else:
-                    oldptr = ptrmap[parts[1]]
-
-                if parts[3] == 'FAIL':
-                    pass
-                else:
+                oldptr = nullPtr if parts[1] == 'NULL' else ptrmap[parts[1]]
+                if parts[3] != 'FAIL':
                     newsize = long(parts[4])
                     newptr = ps.realloc(oldptr, newsize)
-                    if newptr == nullPtr and newsize > 0:
-                        # Failed/freed, don't update pointers
-                        pass
-                    else:
+                    if newptr != nullPtr or newsize <= 0:
                         if parts[1] != 'NULL' and ptrmap.has_key(parts[1]):
                             del ptrmap[parts[1]]
                         if parts[3] != 'NULL':
                             ptrmap[parts[3]] = newptr
-            else:
-                pass  # ignore
-
         sys.stdout.write(' done\n')
         sys.stdout.flush()
         success = True
@@ -456,20 +436,18 @@ def processAllocLog(ps, f_log, out_dir, throw_on_oom=True, emit_files=True):
 
 def gnuplotGraphs(ps, out_dir):
     def plot(files, out_fn):
-        f = open('/tmp/gnuplot-commands', 'wb')
-        f.write('set terminal dumb\n')
-        for idx, fn in enumerate(files):
-            full_fn = os.path.join(out_dir, fn)
-            cmd = 'plot'
-            if idx > 0:
-                cmd = 'replot'
-            f.write('%s "%s" with lines\n' % (cmd, full_fn))
-            #f.write('%s "%s" with boxes\n' % (cmd, full_fn))
-        f.write('set terminal pngcairo size 1024,768\n')
-        f.write('set output "%s"\n' % os.path.join(out_dir, out_fn))
-        f.write('replot\n')
-        f.close()
-
+        with open('/tmp/gnuplot-commands', 'wb') as f:
+            f.write('set terminal dumb\n')
+            for idx, fn in enumerate(files):
+                full_fn = os.path.join(out_dir, fn)
+                cmd = 'plot'
+                if idx > 0:
+                    cmd = 'replot'
+                f.write('%s "%s" with lines\n' % (cmd, full_fn))
+                #f.write('%s "%s" with boxes\n' % (cmd, full_fn))
+            f.write('set terminal pngcairo size 1024,768\n')
+            f.write('set output "%s"\n' % os.path.join(out_dir, out_fn))
+            f.write('replot\n')
         os.system('gnuplot </tmp/gnuplot-commands >/dev/null 2>/dev/null')
 
     plot([ 'alloc_bytes_all.txt',
@@ -512,14 +490,14 @@ def gnuplotGraphs(ps, out_dir):
         files = []
         for sz in ps.getSizes():
             files.append('%s_bytes_%d.txt' % (name, sz))
-        plot(files, '%s_bytes_allpools.png' % name)
+        plot(files, f'{name}_bytes_allpools.png')
 
     # autoplot for all data files
     for fn in os.listdir(out_dir):
         fn_txt = os.path.join(out_dir, fn)
         if not fn_txt.endswith('.txt'):
             continue
-        fn_png = os.path.splitext(fn_txt)[0] + '.png'
+        fn_png = f'{os.path.splitext(fn_txt)[0]}.png'
         if os.path.exists(fn_png):
             continue
 
@@ -541,8 +519,7 @@ def configOneLiner(cfg):
         total_bytes += p1['size'] * p1['count']
         res += ' %r=%r' % (p1['size'], p1['count'])
 
-    res = ('total %d:' % total_bytes) + res
-    return res
+    return ('total %d:' % total_bytes) + res
 
 # Recompute 'total_bytes' of the pool (useful after modifications).
 def recomputePoolTotal(cfg):
@@ -640,14 +617,14 @@ def roundPoolCounts(cfg1, threshold):
     return cfg
 
 def optimizePoolCountsForMemory(cfg_duktape, cfg_apps, target_memory):
-    print('Duktape baseline: %s' % configOneLiner(cfg_duktape))
+    print(f'Duktape baseline: {configOneLiner(cfg_duktape)}')
 
     # Subtract Duktape baseline from app memory usage
     for i in xrange(len(cfg_apps)):
-        print('App with Duktape baseline: %s' % configOneLiner(cfg_apps[i]))
+        print(f'App with Duktape baseline: {configOneLiner(cfg_apps[i])}')
         cfg = subtractPoolCounts(cfg_apps[i], cfg_duktape)
         cfg_apps[i] = cfg
-        print('App minus Duktape baseline: %s' % configOneLiner(cfg))
+        print(f'App minus Duktape baseline: {configOneLiner(cfg)}')
 
     # Normalize app memory usage
     normalized_memory = 1024.0 * 1024.0  # number doesn't really matter, fractions used
@@ -661,20 +638,16 @@ def optimizePoolCountsForMemory(cfg_duktape, cfg_apps, target_memory):
     # Establish a representative profile over normalized application
     # profiles (over Duktape baseline).
     cfg_rep = maxPoolCounts(cfg_apps)
-    print('Representative: %s' % configOneLiner(cfg_rep))
+    print(f'Representative: {configOneLiner(cfg_rep)}')
 
     # Scale (fractionally) to total bytes
     factor = (target_memory - cfg_duktape['total_bytes']) / cfg_rep['total_bytes']
     cfg_res = scalePoolCountsFractional(cfg_rep, factor)
     cfg_res = addPoolCounts(cfg_duktape, cfg_res)
-    print('Fractional result: %s' % configOneLiner(cfg_res))
+    print(f'Fractional result: {configOneLiner(cfg_res)}')
 
-    # Round to integer pool counts with a sliding rounding
-    # threshold so that we meet target memory as closely
-    # as possible
-    round_threshold = 1.0
     round_step = 0.0001
-    round_threshold += round_step
+    round_threshold = 1.0 + round_step
     while True:
         cfg_tmp = roundPoolCounts(cfg_res, round_threshold - round_step)
         #print('rounding... %f -> %d total bytes' % (round_threshold, cfg_tmp['total_bytes']))
@@ -693,7 +666,7 @@ def optimizePoolCountsForMemory(cfg_duktape, cfg_apps, target_memory):
 
     # XXX: negative pool counts
 
-    print('Final pools: %s' % configOneLiner(cfg_final))
+    print(f'Final pools: {configOneLiner(cfg_final)}')
     return cfg_final
 
 #---------------------------------------------------------------------------
@@ -707,20 +680,16 @@ def cmd_simulate(opts, args):
     ps = PoolSimulator(readJson(opts.pool_config), borrow=True, extend=False)
 
     dprint('Process allocation log')
-    f = open(opts.alloc_log)
-    processAllocLog(ps, f, opts.out_dir)
-    f.close()
-
+    with open(opts.alloc_log) as f:
+        processAllocLog(ps, f, opts.out_dir)
     dprint('Write tight pool config based on hwm')
     cfg = ps.getTightHwmConfig()
-    f = open(os.path.join(opts.out_dir, 'config_tight.json'), 'wb')
-    f.write(json.dumps(cfg, indent=4))
-    f.close()
-
+    with open(os.path.join(opts.out_dir, 'config_tight.json'), 'wb') as f:
+        f.write(json.dumps(cfg, indent=4))
     dprint('Plot graphs (gnuplot)')
     gnuplotGraphs(ps, opts.out_dir)
 
-    dprint('Finished, output is in: ' + str(opts.out_dir))
+    dprint(f'Finished, output is in: {str(opts.out_dir)}')
 
     #print(json.dumps(ps.state))
 
@@ -739,16 +708,12 @@ def cmd_tight_counts(opts, args, borrow_optimize):
 
     print('Get hwm pool count profile with autoextend enabled (= no borrowing)')
     ps = PoolSimulator(readJson(opts.pool_config), borrow=False, extend=True)
-    f = open(opts.alloc_log)
-    processAllocLog(ps, f, opts.out_dir, throw_on_oom=True, emit_files=False)
-    f.close()
-
+    with open(opts.alloc_log) as f:
+        processAllocLog(ps, f, opts.out_dir, throw_on_oom=True, emit_files=False)
     cfg = ps.getTightHwmConfig()
-    print('Tight config based on hwm, no borrowing: %s' % configOneLiner(cfg))
-    f = open(os.path.join(opts.out_dir, 'config_tight.json'), 'wb')
-    f.write(json.dumps(cfg, indent=4))
-    f.close()
-
+    print(f'Tight config based on hwm, no borrowing: {configOneLiner(cfg)}')
+    with open(os.path.join(opts.out_dir, 'config_tight.json'), 'wb') as f:
+        f.write(json.dumps(cfg, indent=4))
     if not borrow_optimize:
         return cfg
 
@@ -778,10 +743,8 @@ def cmd_tight_counts(opts, args, borrow_optimize):
                 success = False
             else:
                 ps = PoolSimulator(cfg, borrow=True, extend=False)
-                f = open(opts.alloc_log)
-                success = processAllocLog(ps, f, opts.out_dir, throw_on_oom=False, emit_files=False)
-                f.close()
-
+                with open(opts.alloc_log) as f:
+                    success = processAllocLog(ps, f, opts.out_dir, throw_on_oom=False, emit_files=False)
             if not success:
                 highest_fail = max(highest_fail, p['count'])
                 p['count'] = prev_count
@@ -789,7 +752,9 @@ def cmd_tight_counts(opts, args, borrow_optimize):
 
         print('Pool config after size %d: %s' % (p['size'], configOneLiner(cfg)))
 
-    print('Tight config based on hwm and optimizing borrowing: %s' % configOneLiner(cfg))
+    print(
+        f'Tight config based on hwm and optimizing borrowing: {configOneLiner(cfg)}'
+    )
     return cfg
 
 # Main entry point.
@@ -841,7 +806,7 @@ def main():
         cfg = optimizePoolCountsForMemory(cfg_duktape, cfg_apps, target_memory)
         writeOutputs(cfg)
     else:
-        raise Exception('invalid command ' + str(cmd))
+        raise Exception(f'invalid command {str(cmd)}')
 
 if __name__ == '__main__':
     main()

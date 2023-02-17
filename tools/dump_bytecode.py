@@ -59,13 +59,13 @@ def dump_ins(ins, x):
             Cconst = ins & 0x2
 
             if op['args'][j] == 'A_R':
-                args.append('r' + str(A))
+                args.append(f'r{str(A)}')
 
             elif op['args'][j] == 'A_RI':
-                args.append('r' + str(A) + '(indirect)')
+                args.append(f'r{str(A)}(indirect)')
 
             elif op['args'][j] == 'A_C':
-                args.append('c' + str(A))
+                args.append(f'c{str(A)}')
 
             elif op['args'][j] == 'A_H':
                 args.append(hex(A))
@@ -77,16 +77,16 @@ def dump_ins(ins, x):
                 args.append('true' if A else 'false')
 
             elif op['args'][j] == 'B_RC':
-                args.append('c' if Bconst else 'r' + str(B))
+                args.append('c' if Bconst else f'r{str(B)}')
 
             elif op['args'][j] == 'B_R':
-                args.append('r' + str(B))
+                args.append(f'r{str(B)}')
 
             elif op['args'][j] == 'B_RI':
-                args.append('r' + str(B) + '(indirect)')
+                args.append(f'r{str(B)}(indirect)')
 
             elif op['args'][j] == 'B_C':
-                args.append('c' + str(B))
+                args.append(f'c{str(B)}')
 
             elif op['args'][j] == 'B_H':
                 args.append(hex(B))
@@ -95,16 +95,16 @@ def dump_ins(ins, x):
                 args.append(str(B))
 
             elif op['args'][j] == 'C_RC':
-                args.append('c' if Cconst else 'r' + str(C))
+                args.append('c' if Cconst else f'r{str(C)}')
 
             elif op['args'][j] == 'C_R':
-                args.append('r' + str(C))
+                args.append(f'r{str(C)}')
 
             elif op['args'][j] == 'C_RI':
-                args.append('r' + str(C) + '(indirect)')
+                args.append(f'r{str(C)}(indirect)')
 
             elif op['args'][j] == 'C_C':
-                args.append('c' + str(C))
+                args.append(f'c{str(C)}')
 
             elif op['args'][j] == 'C_H':
                 args.append(hex(C))
@@ -113,10 +113,10 @@ def dump_ins(ins, x):
                 args.append(str(C))
 
             elif op['args'][j] == 'BC_R':
-                args.append('r' + str(BC))
+                args.append(f'r{str(BC)}')
 
             elif op['args'][j] == 'BC_C':
-                args.append('c' + str(BC))
+                args.append(f'c{str(BC)}')
 
             elif op['args'][j] == 'BC_H':
                 args.append(hex(BC))
@@ -138,20 +138,19 @@ def dump_ins(ins, x):
             elif op['args'][j] == 'ABC_JUMP':
                 pc_add = ABC - (1 << 23) + 1
                 pc_dst = pc + pc_add
-                args.append(str(pc_dst) + ' (' + ('+' if pc_add >= 0 else '') + str(pc_add) + ')')
+                args.append(
+                    f'{str(pc_dst)} ('
+                    + ('+' if pc_add >= 0 else '')
+                    + str(pc_add)
+                    + ')'
+                )
             else:
                 args.append('?')
 
     if 'flags' in op:
-        for f in op['flags']:
-            if ins & f['mask']:
-                comments.append(f['name'])
-
-    if len(args) > 0:
-        res = '%-12s %s' % (op['name'], ', '.join(args))
-    else:
-        res = op['name']
-    if len(comments) > 0:
+        comments.extend(f['name'] for f in op['flags'] if ins & f['mask'])
+    res = '%-12s %s' % (op['name'], ', '.join(args)) if args else op['name']
+    if comments:
         res = '%-44s ; %s' % (res, ', '.join(comments))
 
     return res
@@ -181,7 +180,7 @@ def dump_function(buf, off, ind):
         code = dump_ins(ins, i)
         print('%s  %06d: %08lx %s' % (ind, i, ins, code))
 
-    print('%sConstants:' % ind)
+    print(f'{ind}Constants:')
     for i in xrange(count_const):
         const_type, = struct.unpack('B', buf[off:off + 1])
         off += 1
@@ -198,17 +197,17 @@ def dump_function(buf, off, ind):
 
     for i in xrange(count_funcs):
         print('%sInner function %d:' % (ind, i))
-        off = dump_function(buf, off, ind + '  ')
+        off = dump_function(buf, off, f'{ind}  ')
 
     val, = struct.unpack('>L', buf[off:off + 4])
     off += 4
     print('%s.length: %d' % (ind, val))
     off, val = decode_sanitize_string(buf, off)
-    print('%s.name: %s' % (ind, val))
+    print(f'{ind}.name: {val}')
     off, val = decode_sanitize_string(buf, off)
-    print('%s.fileName: %s' % (ind, val))
+    print(f'{ind}.fileName: {val}')
     off, val = decode_string(buf, off)  # actually a buffer
-    print('%s._Pc2line: %s' % (ind, val.encode('hex')))
+    print(f"{ind}._Pc2line: {val.encode('hex')}")
 
     while True:
         off, name = decode_string(buf, off)
@@ -228,7 +227,7 @@ def dump_function(buf, off, ind):
             name = sanitize_string(name)
             print('%s_Formals[%d] = %s' % (ind, idx, name))
     else:
-        print('%s_Formals: absent' % ind)
+        print(f'{ind}_Formals: absent')
 
     return off
 
@@ -241,9 +240,7 @@ def dump_bytecode(buf, off, ind):
     if sig != 0xbf:
         raise Exception('invalid signature byte: %d' % sig)
 
-    off = dump_function(buf, off, ind + '  ')
-
-    return off
+    return dump_function(buf, off, f'{ind}  ')
 
 def main():
     global ops
