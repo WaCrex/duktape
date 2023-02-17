@@ -26,15 +26,13 @@ import optparse
 re_include = re.compile(r'^/\*@include\s(.*?)\s*@\*/$')
 
 def readFile(fn):
-    f = open(fn, 'rb')
-    data = f.read()
-    f.close()
+    with open(fn, 'rb') as f:
+        data = f.read()
     return data
 
 def writeFile(fn, data):
-    f = open(fn, 'wb')
-    f.write(data)
-    f.close()
+    with open(fn, 'wb') as f:
+        f.write(data)
 
 def stripTrailingNewlines(data):
     while data.endswith('\n'):
@@ -112,7 +110,7 @@ class TestcasePreparer:
 
     def prepEcmaInclude(self, fn):
         absFn = os.path.join(self.util_include_path, fn)
-        return '/* INCLUDE: ' + fn + ' */ ' + stripTrailingNewlines(self.minifyOneLine(absFn))
+        return f'/* INCLUDE: {fn} */ {stripTrailingNewlines(self.minifyOneLine(absFn))}'
 
     def prepEcmaTest(self, fn_in, fn_prologue, data):
         is_strict = False
@@ -133,9 +131,9 @@ class TestcasePreparer:
         if fn_prologue is not None:
             # Prepend prologue to first line; if the program is strict
             # duplicate the 'use strict' declaration.
-            lines[0] = self.prepEcmaPrologue(fn_prologue) + ' /*...*/ ' + lines[0]
+            lines[0] = f'{self.prepEcmaPrologue(fn_prologue)} /*...*/ {lines[0]}'
             if is_strict:
-                lines[0] = "'use strict'; " + lines[0]
+                lines[0] = f"'use strict'; {lines[0]}"
 
         return '\n'.join(lines)
 

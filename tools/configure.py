@@ -51,20 +51,28 @@ def main():
     force_options_yaml = []
     def add_force_option_yaml(option, opt, value, parser):
         force_options_yaml.append(value)
+
     def add_force_option_file(option, opt, value, parser):
         with open(value, 'rb') as f:
             force_options_yaml.append(f.read())
+
     def add_force_option_define(option, opt, value, parser):
         defname, eq, defval = value.partition('=')
         if not eq:
             doc = { defname: True }
         else:
             defname, paren, defargs = defname.partition('(')
-            if not paren:
-                doc = { defname: defval }
-            else:
-                doc = { defname: { 'verbatim': '#define %s%s%s %s' % (defname, paren, defargs, defval) } }
+            doc = (
+                {
+                    defname: {
+                        'verbatim': f'#define {defname}{paren}{defargs} {defval}'
+                    }
+                }
+                if paren
+                else {defname: defval}
+            )
         force_options_yaml.append(yaml.safe_dump(doc))
+
     def add_force_option_undefine(option, opt, value, parser):
         tmp = value.split('=')
         if len(tmp) == 1:
@@ -76,6 +84,7 @@ def main():
     fixup_header_lines = []
     def add_fixup_header_line(option, opt, value, parser):
         fixup_header_lines.append(value)
+
     def add_fixup_header_file(option, opt, value, parser):
         with open(value, 'rb') as f:
             for line in f:
@@ -215,7 +224,9 @@ def main():
     if opts.c99_types_only:
         cmd += [ '--c99-types-only' ]
 
-    sys.stderr.write('*** Executing JS-based tooling with command: ' + repr(cmd) + '\n\n')
+    sys.stderr.write(
+        f'*** Executing JS-based tooling with command: {repr(cmd)}' + '\n\n'
+    )
     subprocess.check_call(cmd)
 
 if __name__ == '__main__':

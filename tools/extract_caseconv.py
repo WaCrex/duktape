@@ -34,19 +34,17 @@ class UnicodeData:
 
     def read_unicode_data(self, filename):
         res = []
-        f = open(filename, 'rb')
-        for line in f:
-            if line.startswith('#'):
-                continue
-            line = line.strip()
-            if line == '':
-                continue
-            parts = line.split(';')
-            if len(parts) != 15:
-                raise Exception('invalid unicode data line')
-            res.append(parts)
-        f.close()
-
+        with open(filename, 'rb') as f:
+            for line in f:
+                if line.startswith('#'):
+                    continue
+                line = line.strip()
+                if line == '':
+                    continue
+                parts = line.split(';')
+                if len(parts) != 15:
+                    raise Exception('invalid unicode data line')
+                res.append(parts)
         # Sort based on Unicode codepoint.
         def mycmp(a,b):
             return cmp(long(a[0], 16), long(b[0], 16))
@@ -63,22 +61,21 @@ class SpecialCasing:
 
     def read_special_casing_data(self, filename):
         res = []
-        f = open(filename, 'rb')
-        for line in f:
-            try:
-                idx = line.index('#')
-                line = line[:idx]
-            except ValueError:
-                pass
-            line = line.strip()
-            if line == '':
-                continue
-            parts = line.split(';')
-            parts = [i.strip() for i in parts]
-            while len(parts) < 6:
-                parts.append('')
-            res.append(parts)
-        f.close()
+        with open(filename, 'rb') as f:
+            for line in f:
+                try:
+                    idx = line.index('#')
+                    line = line[:idx]
+                except ValueError:
+                    pass
+                line = line.strip()
+                if line == '':
+                    continue
+                parts = line.split(';')
+                parts = [i.strip() for i in parts]
+                while len(parts) < 6:
+                    parts.append('')
+                res.append(parts)
         return res
 
 def parse_unicode_sequence(x):
@@ -414,6 +411,7 @@ def generate_regexp_canonicalize_tables(convmap):
            rng1[1] + rng1[2] == rng2[1]:
             return [ rng1[0], rng1[1], rng1[2] + rng2[2] ]
         return None
+
     def merge_check_nogap():
         len_start = len(canon_ranges)
         for i in xrange(len(canon_ranges) - 1):
@@ -430,9 +428,7 @@ def generate_regexp_canonicalize_tables(convmap):
             if x is not None:
                 filtered.append(x)
         len_end = len(filtered)
-        if len_end < len_start:
-            return filtered
-        return None
+        return filtered if len_end < len_start else None
 
     print('generate canon_ranges')
     while True:
@@ -475,6 +471,7 @@ def generate_regexp_canonicalize_tables(convmap):
             prev_in = curr_in
             prev_out = curr_out
         return res
+
     def generate_needcheck_ranges(data):
         # Generate maximal accurate ranges.
         prev = None
@@ -491,6 +488,7 @@ def generate_regexp_canonicalize_tables(convmap):
         if prev is not None:
             ranges.append([ prev, count ])
         return ranges
+
     def fillin_needcheck_ranges(data, false_limit):
         # Fill in TRUE-FALSE*N-TRUE gaps into TRUE-TRUE*N-TRUE which is
         # safe (leads to an unnecessary runtime check) but reduces
@@ -616,7 +614,7 @@ def generate_regexp_canonicalize_tables(convmap):
     print('generate final canon bitmap')
     block_bitmap = convert_to_bitmap(block_bits2)
     print('- %d bytes' % len(block_bitmap))
-    print('- ' + repr(block_bitmap))
+    print(f'- {repr(block_bitmap)}')
     canon_bitmap = {
         'data': block_bitmap,
         'block_size': block_size,
@@ -634,10 +632,7 @@ def generate_regexp_canonicalize_tables(convmap):
 
 def clonedict(x):
     "Shallow clone of input dict."
-    res = {}
-    for k in x.keys():
-        res[k] = x[k]
-    return res
+    return {k: x[k] for k in x.keys()}
 
 def main():
     parser = optparse.OptionParser()
@@ -675,17 +670,14 @@ def main():
         genc.emitHeader('extract_caseconv.py')
         genc.emitArray(uc_bytes, opts.table_name_uc, size=len(uc_bytes), typename='duk_uint8_t', intvalues=True, const=True)
         genc.emitArray(lc_bytes, opts.table_name_lc, size=len(lc_bytes), typename='duk_uint8_t', intvalues=True, const=True)
-        f = open(opts.out_source, 'wb')
-        f.write(genc.getString())
-        f.close()
-
+        with open(opts.out_source, 'wb') as f:
+            f.write(genc.getString())
         genc = dukutil.GenerateC()
         genc.emitHeader('extract_caseconv.py')
         genc.emitLine('extern const duk_uint8_t %s[%d];' % (opts.table_name_uc, len(uc_bytes)))
         genc.emitLine('extern const duk_uint8_t %s[%d];' % (opts.table_name_lc, len(lc_bytes)))
-        f = open(opts.out_header, 'wb')
-        f.write(genc.getString())
-        f.close()
+        with open(opts.out_header, 'wb') as f:
+            f.write(genc.getString())
     elif opts.command == 're_canon_lookup':
         # Direct canonicalization lookup for case insensitive regexps, includes ascii part.
         t = clonedict(uc)
@@ -694,16 +686,13 @@ def main():
         genc = dukutil.GenerateC()
         genc.emitHeader('extract_caseconv.py')
         genc.emitArray(re_canon_lookup, opts.table_name_re_canon_lookup, size=len(re_canon_lookup), typename='duk_uint16_t', intvalues=True, const=True)
-        f = open(opts.out_source, 'wb')
-        f.write(genc.getString())
-        f.close()
-
+        with open(opts.out_source, 'wb') as f:
+            f.write(genc.getString())
         genc = dukutil.GenerateC()
         genc.emitHeader('extract_caseconv.py')
         genc.emitLine('extern const duk_uint16_t %s[%d];' % (opts.table_name_re_canon_lookup, len(re_canon_lookup)))
-        f = open(opts.out_header, 'wb')
-        f.write(genc.getString())
-        f.close()
+        with open(opts.out_header, 'wb') as f:
+            f.write(genc.getString())
     elif opts.command == 're_canon_bitmap':
         # N-codepoint block bitmap for skipping continuous codepoint blocks
         # quickly.
@@ -713,19 +702,16 @@ def main():
         genc = dukutil.GenerateC()
         genc.emitHeader('extract_caseconv.py')
         genc.emitArray(re_canon_bitmap['data'], opts.table_name_re_canon_bitmap, size=len(re_canon_bitmap['data']), typename='duk_uint8_t', intvalues=True, const=True)
-        f = open(opts.out_source, 'wb')
-        f.write(genc.getString())
-        f.close()
-
+        with open(opts.out_source, 'wb') as f:
+            f.write(genc.getString())
         genc = dukutil.GenerateC()
         genc.emitHeader('extract_caseconv.py')
         genc.emitDefine('DUK_CANON_BITMAP_BLKSIZE', re_canon_bitmap['block_size'])
         genc.emitDefine('DUK_CANON_BITMAP_BLKSHIFT', re_canon_bitmap['block_shift'])
         genc.emitDefine('DUK_CANON_BITMAP_BLKMASK', re_canon_bitmap['block_mask'])
         genc.emitLine('extern const duk_uint8_t %s[%d];' % (opts.table_name_re_canon_bitmap, len(re_canon_bitmap['data'])))
-        f = open(opts.out_header, 'wb')
-        f.write(genc.getString())
-        f.close()
+        with open(opts.out_header, 'wb') as f:
+            f.write(genc.getString())
     else:
         raise Exception('invalid command: %r' % opts.command)
 

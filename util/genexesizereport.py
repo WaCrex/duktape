@@ -114,7 +114,7 @@ def main():
     f = sys.stdout
     f.write('<html>')
     f.write('<head>')
-    f.write('<title>Size dump for %s</title>' % sys.argv[1])
+    f.write(f'<title>Size dump for {sys.argv[1]}</title>')
     f.write("""\
 <style type="text/css">
 tr:nth-child(2n) {
@@ -151,6 +151,7 @@ tr:nth-child(2n+1) {
     funcs_keys = funcs.keys()
     def cmpSize(a,b):
         return cmp(funcs[a]['length'], funcs[b]['length'])
+
     funcs_keys.sort(cmp=cmpSize)
     for k in funcs_keys:
         fun = funcs[k]

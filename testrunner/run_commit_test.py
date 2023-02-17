@@ -75,18 +75,15 @@ assert(repo_snapshot_dir is not None)
 #
 
 def newenv(**kw):
-    ret = {}
-    for k in os.environ.keys():
-        ret[k] = str(os.environ[k])
-
-    for k in kw.keys():
+    ret = {k: str(os.environ[k]) for k in os.environ.keys()}
+    for k in kw:
         ret[k] = str(kw[k])
 
     #print('Final environment: %r' % ret)
     return ret
 
 def execute(cmd, env=None, catch=False, input='', dump_stdout=True, dump_stderr=True):
-    print(' - ' + repr(cmd))
+    print(f' - {repr(cmd)}')
 
     success = True
 
@@ -117,13 +114,13 @@ def execute(cmd, env=None, catch=False, input='', dump_stdout=True, dump_stderr=
     }
 
 def unpack_targz(fn):
-    print('Extracting %s to %s' % (fn, os.getcwd()))
+    print(f'Extracting {fn} to {os.getcwd()}')
     t = tarfile.open(fn)
     t.extractall()
     t.close()
 
 def unpack_zip(fn):
-    print('Extracting %s to %s' % (fn, os.getcwd()))
+    print(f'Extracting {fn} to {os.getcwd()}')
     z = zipfile.ZipFile(fn, 'r')
     z.extractall()
     z.close()
@@ -135,10 +132,10 @@ def get_binary_size(fn):
     if m is None:
         raise Exception('cannot figure out size for binary %r' % fn)
     return {
-        'text': int(m.group(1)),
-        'data': int(m.group(2)),
-        'bss': int(m.group(3)),
-        'total': int(m.group(4))
+        'text': int(m[1]),
+        'data': int(m[2]),
+        'bss': int(m[3]),
+        'total': int(m[4]),
     }
 
 def format_size_diff(newsz, oldsz):
@@ -285,11 +282,11 @@ def context_linux_x64_octane():
     execute([ 'make', 'duk.O2' ])
     os.chdir(os.path.join(cwd, 'tests', 'octane'))
     scores = []
-    for i in xrange(5):
+    for _ in xrange(5):
         res = execute([ 'make', 'test' ])
         m = re.match(r'.*?SCORE (\d+)', res['stdout'], re.DOTALL)
         if m is not None:
-            scores.append(float(m.group(1)))
+            scores.append(float(m[1]))
         print('scores so far: min=%f, max=%f, avg=%f: %r' % (min(scores), max(scores), sum(scores) / float(len(scores)), scores))
     set_output_result({
         'description': '%.1f (%d-%d)' % (float(sum(scores) / float(len(scores))), int(min(scores)), int(max(scores))),
@@ -452,10 +449,10 @@ def context_linux_x64_cpp_exceptions():
     res = execute([
         os.path.join(cwd, 'duk-cpp-exc')
     ])
-    count = 0
-    for line in res['stdout'].split('\n'):
-        if 'my_class instance destroyed' in line:
-            count += 1
+    count = sum(
+        'my_class instance destroyed' in line
+        for line in res['stdout'].split('\n')
+    )
     print('Destruct count: %d' % count)
 
     if count >= 15:
@@ -575,13 +572,19 @@ def context_linux_x64_duk_separate_src():
     execute([ 'make', 'dist' ])
     os.chdir(os.path.join(cwd, 'dist'))
 
-    cfiles =[]
-    for fn in os.listdir(os.path.join(cwd, 'dist', 'src-separate')):
-        if fn[-2:] == '.c':
-            cfiles.append(os.path.join(cwd, 'dist', 'src-separate', fn))
-    cfiles.append(os.path.join(cwd, 'dist', 'examples', 'cmdline', 'duk_cmdline.c'))
-    cfiles.append(os.path.join(cwd, 'dist', 'extras', 'print-alert', 'duk_print_alert.c'))
-
+    cfiles = [
+        os.path.join(cwd, 'dist', 'src-separate', fn)
+        for fn in os.listdir(os.path.join(cwd, 'dist', 'src-separate'))
+        if fn[-2:] == '.c'
+    ]
+    cfiles.extend(
+        (
+            os.path.join(cwd, 'dist', 'examples', 'cmdline', 'duk_cmdline.c'),
+            os.path.join(
+                cwd, 'dist', 'extras', 'print-alert', 'duk_print_alert.c'
+            ),
+        )
+    )
     execute([
         'gcc', '-oduk',
         '-DDUK_CMDLINE_PRINTALERT_SUPPORT',
@@ -770,7 +773,7 @@ def context_helper_hello_ram(archopt):
             os.path.join(cwd, 'massif.out')
         ], dump_stdout=False)
         lines = res['stdout'].split('\n')
-        print('\n'.join(lines[0:50]))  # print 50 first lines only
+        print('\n'.join(lines[:50]))
 
         #    KB
         #107.5^                                            :
@@ -778,11 +781,11 @@ def context_helper_hello_ram(archopt):
 
         kb = '???'
         re_kb = re.compile(r'^([0-9\.]+)\^.*?$')
-        for line in lines[0:10]:
+        for line in lines[:10]:
             m = re_kb.match(line)
             if m is not None:
-                kb = m.group(1)
-        print(' --> KB: ' + kb)
+                kb = m[1]
+        print(f' --> KB: {kb}')
         return kb
 
     print('--- Default')
@@ -807,12 +810,14 @@ def context_helper_hello_ram(archopt):
         '-UDUK_USE_HSTRING_ARRIDX'
     ])
 
-    set_output_result({
-        'description': '%s %s %s (kB)' % (kb_default, kb_nobufobj, kb_rom),
-        'kb_default': kb_default,
-        'kb_nobufobj': kb_nobufobj,
-        'kb_rom': kb_rom
-    })
+    set_output_result(
+        {
+            'description': f'{kb_default} {kb_nobufobj} {kb_rom} (kB)',
+            'kb_default': kb_default,
+            'kb_nobufobj': kb_nobufobj,
+            'kb_rom': kb_rom,
+        }
+    )
 
     return True
 
@@ -879,14 +884,43 @@ def context_linux_tval_variants():
     # Cover most duk_tval.h cases, but only for little endian now.
     res = True
     for archopt in [ '-m64', '-m32' ]:
-        optsets = []
-        optsets.append([ '-UDUK_USE_PACKED_TVAL', '-DDUK_USE_64BIT_OPS', '-DDUK_USE_FASTINT' ])
-        optsets.append([ '-UDUK_USE_PACKED_TVAL', '-DDUK_USE_64BIT_OPS', '-UDUK_USE_FASTINT' ])
-        optsets.append([ '-UDUK_USE_PACKED_TVAL', '-UDUK_USE_64BIT_OPS', '-UDUK_USE_FASTINT' ])
+        optsets = [
+            [
+                '-UDUK_USE_PACKED_TVAL',
+                '-DDUK_USE_64BIT_OPS',
+                '-DDUK_USE_FASTINT',
+            ],
+            [
+                '-UDUK_USE_PACKED_TVAL',
+                '-DDUK_USE_64BIT_OPS',
+                '-UDUK_USE_FASTINT',
+            ],
+            [
+                '-UDUK_USE_PACKED_TVAL',
+                '-UDUK_USE_64BIT_OPS',
+                '-UDUK_USE_FASTINT',
+            ],
+        ]
         if archopt == '-m32':
-            optsets.append([ '-DDUK_USE_PACKED_TVAL', '-DDUK_USE_64BIT_OPS', '-DDUK_USE_FASTINT' ])
-            optsets.append([ '-DDUK_USE_PACKED_TVAL', '-DDUK_USE_64BIT_OPS', '-UDUK_USE_FASTINT' ])
-            optsets.append([ '-DDUK_USE_PACKED_TVAL', '-UDUK_USE_64BIT_OPS', '-UDUK_USE_FASTINT' ])
+            optsets.extend(
+                (
+                    [
+                        '-DDUK_USE_PACKED_TVAL',
+                        '-DDUK_USE_64BIT_OPS',
+                        '-DDUK_USE_FASTINT',
+                    ],
+                    [
+                        '-DDUK_USE_PACKED_TVAL',
+                        '-DDUK_USE_64BIT_OPS',
+                        '-UDUK_USE_FASTINT',
+                    ],
+                    [
+                        '-DDUK_USE_PACKED_TVAL',
+                        '-UDUK_USE_64BIT_OPS',
+                        '-UDUK_USE_FASTINT',
+                    ],
+                )
+            )
         for optset in optsets:
             res = res and mandel_test(archopt, optset)
     return res
@@ -1121,14 +1155,17 @@ context_handlers = {
 #
 
 def main():
-    print('*** Running test %r on %s' % (context, datetime.datetime.utcnow().isoformat() + 'Z'))
+    print(
+        '*** Running test %r on %s'
+        % (context, f'{datetime.datetime.utcnow().isoformat()}Z')
+    )
     print('')
-    print('repo_full_name: ' + repo_full_name)
-    print('repo_clone_url: ' + repo_clone_url)
+    print(f'repo_full_name: {repo_full_name}')
+    print(f'repo_clone_url: {repo_clone_url}')
     if opts.fetch_ref is not None:
-        print('fetch_ref: ' + opts.fetch_ref)
-    print('commit_name: ' + commit_name)
-    print('context: ' + context);
+        print(f'fetch_ref: {opts.fetch_ref}')
+    print(f'commit_name: {commit_name}')
+    print(f'context: {context}');
 
     if not os.path.isdir(temp_dir):
         raise Exception('missing or invalid temporary directory: %r' % temp_dir)
@@ -1141,8 +1178,11 @@ def main():
         raise Exception('repo name is not whitelisted: %r' % repo_full_name)
 
     # Replace full repo forward slashes with platform separator
-    repo_targz = apply(os.path.join, [ repo_snapshot_dir ] + (repo_full_name + '.tar.gz').split('/'))
-    if repo_targz[0:len(repo_snapshot_dir)] != repo_snapshot_dir:
+    repo_targz = apply(
+        os.path.join,
+        [repo_snapshot_dir] + f'{repo_full_name}.tar.gz'.split('/'),
+    )
+    if repo_targz[: len(repo_snapshot_dir)] != repo_snapshot_dir:
         raise Exception('internal error figuring out repo_targz: %r' % repo_targz)
 
     repo_dir = os.path.join(temp_dir, 'repo')
@@ -1188,11 +1228,11 @@ def main():
     if fn is None:
         print('Unknown context %s, supported contexts:')
         for ctx in sorted(context_handlers.keys()):
-            print('  ' + ctx)
-        raise Exception('context unknown: ' + context)
+            print(f'  {ctx}')
+        raise Exception(f'context unknown: {context}')
 
     print('')
-    print('*** Running test for context: ' + context)
+    print(f'*** Running test for context: {context}')
     print('')
 
     test_start_time = time.time()
@@ -1201,7 +1241,7 @@ def main():
     set_output_field('test_time', test_end_time - test_start_time)
 
     print('')
-    print('*** Finished test for context: ' + context + ', success: ' + repr(success))
+    print(f'*** Finished test for context: {context}, success: {repr(success)}')
     print('')
 
     if success == True:
@@ -1219,24 +1259,23 @@ if __name__ == '__main__':
     total_start_time = time.time()
 
     try:
-        try:
-            main()
-            raise Exception('internal error, should never be here')
-        except SystemExit:
-            # Test script success.
-            raise
-        except:
-            # Test script failed, automatic retry is useful.
-            print('')
-            print('*** Test script failed')
-            print('')
-            traceback.print_exc()
-            set_output_result({
-                'description': 'Test script error',
-                'error': True,
-                'traceback': traceback.format_exc()
-            })
-            sys.exit(2)
+        main()
+        raise Exception('internal error, should never be here')
+    except SystemExit:
+        # Test script success.
+        raise
+    except:
+        # Test script failed, automatic retry is useful.
+        print('')
+        print('*** Test script failed')
+        print('')
+        traceback.print_exc()
+        set_output_result({
+            'description': 'Test script error',
+            'error': True,
+            'traceback': traceback.format_exc()
+        })
+        sys.exit(2)
     finally:
         total_end_time = time.time()
         set_output_field('total_time', total_end_time - total_start_time)
@@ -1245,4 +1284,4 @@ if __name__ == '__main__':
 
         if output_result_json is not None:
             print('TESTRUNNER_DESCRIPTION: ' + output_result_json.get('description', ''))
-            print('TESTRUNNER_RESULT_JSON: ' + json.dumps(output_result_json))
+            print(f'TESTRUNNER_RESULT_JSON: {json.dumps(output_result_json)}')

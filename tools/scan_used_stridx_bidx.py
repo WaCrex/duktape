@@ -40,9 +40,9 @@ def main():
             for m in re.finditer(re_duk_use, d):
                 opt_defs[m.group(1)] = True
 
-    str_used = ['DUK_STRIDX_' + x for x in sorted(str_defs.keys())]
-    obj_used = ['DUK_BIDX_' + x for x in sorted(obj_defs.keys())]
-    opt_used = ['DUK_USE_' + x for x in sorted(opt_defs.keys())]
+    str_used = [f'DUK_STRIDX_{x}' for x in sorted(str_defs.keys())]
+    obj_used = [f'DUK_BIDX_{x}' for x in sorted(obj_defs.keys())]
+    opt_used = [f'DUK_USE_{x}' for x in sorted(opt_defs.keys())]
 
     doc = {
         'used_stridx_defines': str_used,

@@ -37,13 +37,13 @@ def main(f_in, f_out, funcname):
 
 	#print(repr(parts))
 
-	for key in parts.keys():
+	for key in parts:
 		part = parts[key]
 		while len(part) > 0 and part[-1] == '':
 			part = part[:-1]
 		parts[key] = part
 
-	for key in parts.keys():
+	for key in parts:
 		part = parts[key]
 		if len(part) == 0:
 			del parts[key]

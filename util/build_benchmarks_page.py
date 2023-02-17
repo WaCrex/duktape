@@ -34,7 +34,9 @@ def main():
     re_release_tag = re.compile('^v\d+\.\d+\.\d+$')
     annotations = []
     for x,h in enumerate(hashes):
-        os.system('cd %s && git tag -l --points-at %s > /tmp/tmp-taglog.txt' % (duktape_repo, h))
+        os.system(
+            f'cd {duktape_repo} && git tag -l --points-at {h} > /tmp/tmp-taglog.txt'
+        )
         with open('/tmp/tmp-taglog.txt', 'rb') as f:
             for line in f:
                 line = line.strip()
@@ -51,7 +53,9 @@ def main():
     with open('/tmp/tmp-request.json', 'wb') as f:
         f.write(json.dumps(req))
 
-    os.system('cd %s && cd client-simple-node && nodejs client.js --request-uri /query-commit-simple --config %s --request-file /tmp/tmp-request.json --output-file /tmp/tmp-result.json' % (duktape_testrunner_repo, duktape_testclient_config))
+    os.system(
+        f'cd {duktape_testrunner_repo} && cd client-simple-node && nodejs client.js --request-uri /query-commit-simple --config {duktape_testclient_config} --request-file /tmp/tmp-request.json --output-file /tmp/tmp-result.json'
+    )
 
     with open('/tmp/tmp-result.json', 'rb') as f:
         data = json.loads(f.read())
@@ -80,7 +84,7 @@ var input = new TextDecoder().decode(readFile('/tmp/tmp-graphdata.json'));
 var compressed = LZString.compressToBase64(input);
 writeFile('/tmp/tmp-graphdata-compressed.txt', compressed);
 ''')
-    os.system('%s %s /tmp/tmp-script.js' % (duk, lzstring))
+    os.system(f'{duk} {lzstring} /tmp/tmp-script.js')
     with open('/tmp/tmp-graphdata-compressed.txt', 'rb') as f:
         graphdata = f.read()
 
@@ -89,8 +93,9 @@ writeFile('/tmp/tmp-graphdata-compressed.txt', compressed);
     with open(benchmarks_template, 'rb') as f:
         page = f.read()
 
-    page = page.replace('<!-- @DATA@ -->', \
-                        'var rawGraphDataCompressed = "' + graphdata + '";')
+    page = page.replace(
+        '<!-- @DATA@ -->', f'var rawGraphDataCompressed = "{graphdata}";'
+    )
 
     with open('/tmp/benchmarks.html', 'wb') as f:
         f.write(page)

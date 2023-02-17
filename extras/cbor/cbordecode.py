@@ -11,10 +11,10 @@ def main():
     print('HEX: ' + data.encode('hex'))
     sys.stdout.flush()
     doc = cbor.loads(data)
-    print('REPR: ' + repr(doc))
+    print(f'REPR: {repr(doc)}')
     sys.stdout.flush()
     try:
-        print('JSON: ' + json.dumps(doc))
+        print(f'JSON: {json.dumps(doc)}')
         sys.stdout.flush()
     except:
         print('JSON: cannot encode')

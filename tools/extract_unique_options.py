@@ -17,16 +17,14 @@ def main():
     opts = {}
 
     for fn in sys.argv[1:]:
-        f = open(fn, 'rb')
-        for line in f:
-            for t in re.findall(re_use, line):
-                if t[-1] != '_':  # skip e.g. 'DUK_USE_'
-                    uses[t] = True
-            for t in re.findall(re_opt, line):
-                if t[-1] != '_':
-                    opts[t] = True
-        f.close()
-
+        with open(fn, 'rb') as f:
+            for line in f:
+                for t in re.findall(re_use, line):
+                    if t[-1] != '_':  # skip e.g. 'DUK_USE_'
+                        uses[t] = True
+                for t in re.findall(re_opt, line):
+                    if t[-1] != '_':
+                        opts[t] = True
     k = opts.keys()
     k.sort()
     for i in k:

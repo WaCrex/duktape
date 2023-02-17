@@ -11,19 +11,12 @@ import pytz
 def isleapyear(year):
     if (year % 4) != 0:
         return False
-    if (year % 100) != 0:
-        return True
-    if (year % 400) != 0:
-        return False
-    return True
+    return True if (year % 100) != 0 else year % 400 == 0
 
 def eqyear(weekday, isleap):
     # weekday: 0=Sunday, 1=Monday, ...
 
-    if isleap:
-        recent_year = 1956
-    else:
-        recent_year = 1967
+    recent_year = 1956 if isleap else 1967
     recent_year += (weekday * 12) % 28
     year = 2008 + (recent_year + 3 * 28 - 2008) % 28
 
@@ -41,12 +34,8 @@ def eqyear(weekday, isleap):
 
     if isleap != isleapyear(year):
         raise Exception('internal error: equivalent year does not have same leap-year-ness')
-        pass
-
     if weekday != dt.isoweekday() % 7:
         raise Exception('internal error: equivalent year does not begin with the same weekday')
-        pass
-
     return year
 
 def main():

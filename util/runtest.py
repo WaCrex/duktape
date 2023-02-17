@@ -140,8 +140,11 @@ def write_file(fn, data):
 
 # Convert to Windows path if necessary, used when running commands from Cygwin.
 def path_to_platform(path):
-    if not cygwin: return path
-    return subprocess.check_output([ 'cygpath', '-w', path ]).strip()
+    return (
+        subprocess.check_output(['cygpath', '-w', path]).strip()
+        if cygwin
+        else path
+    )
 
 #
 #  Text processing helpers.
@@ -150,9 +153,7 @@ def path_to_platform(path):
 # Apply ANSI coloring.
 # http://stackoverflow.com/questions/287871/print-in-terminal-with-colors-using-python
 def ansi_color(text, color):
-    if use_colors:
-        return '\x1b[' + color + 'm' + text + '\x1b[0m'
-    return text
+    return '\x1b[' + color + 'm' + text + '\x1b[0m' if use_colors else text
 def green(text):
     return ansi_color(text, '1;32;40')
 def red(text):
@@ -192,8 +193,9 @@ def indent_lines(lines, count):
 def clip_lines(lines, start_idx, end_idx, column_limit=None):
     def clipline(x):
         if column_limit is not None and len(x) > column_limit:
-            return x[0:column_limit] + ' [... %d more chars]' % (len(x) - column_limit)
+            return x[:column_limit] + ' [... %d more chars]' % (len(x) - column_limit)
         return x
+
     res = [clipline(x) for x in lines[start_idx:end_idx]]
     if len(lines) > end_idx:
         res.append('[... %d more lines]' % (len(lines) - end_idx))
@@ -231,10 +233,10 @@ def parse_massif_result(f, res):
 
         heap = None
         if m1 is not None:
-            heap = int(m1.group(1))
+            heap = int(m1[1])
         stack = None
         if m3 is not None:
-            stack = int(m3.group(1))
+            stack = int(m3[1])
 
         if heap is not None:
             peak_heap = max(peak_heap, heap)
@@ -401,7 +403,8 @@ def minify_ecmascript(data):
     else:
         #print('Input is not minified, no minifier given, using built-in simple minifier')
         def repl_comment(m):
-            return '/* ' + m.group(1) + '*/'
+            return f'/* {m.group(1)}*/'
+
         res = re.sub(re_singlelinecomment, repl_comment, data)
         res = res.replace('\n', ' ')
 
@@ -419,15 +422,16 @@ def prepare_ecmascript_testcase(data, meta):
     def repl_include(m):
         incfile = read_include_file(m.group(1))
         return minify_ecmascript(incfile)
+
     data = re.sub(re_include, repl_include, data)
 
     # Inject shared engine prefix.
-    data = minify_ecmascript(ECMASCRIPT_TEST_FRAMEWORK) + ' ' + data
+    data = f'{minify_ecmascript(ECMASCRIPT_TEST_FRAMEWORK)} {data}'
 
     # If the testcase needs to run strict program level code, prepend a
     # 'use strict' declaration once all the other preparations are done.
     if meta.get('use_strict', False):
-        data = "'use strict'; " + data
+        data = f"'use strict'; {data}"
 
     # Manually enabled Promise hack.
     if False:
@@ -506,15 +510,15 @@ def execute_ecmascript_testcase(res, data, name, polyfills):
                 res['valgrind'] = True
                 res['valgrind_tool'] = opts.valgrind_tool
                 cmd += [ 'valgrind' ]
-                cmd += [ '--tool=' + opts.valgrind_tool ]
+                cmd += [f'--tool={opts.valgrind_tool}']
 
                 valgrind_output = os.path.abspath(os.path.join(tempdir, 'valgrind.out'))
                 if opts.valgrind_tool == 'massif':
-                    cmd += [ '--massif-out-file=' + path_to_platform(valgrind_output) ]
-                    #cmd += [ '--peak-inaccuracy=0.0' ]
-                    #cmd += [ '--stacks=yes' ]
+                    cmd += [f'--massif-out-file={path_to_platform(valgrind_output)}']
+                                    #cmd += [ '--peak-inaccuracy=0.0' ]
+                                    #cmd += [ '--stacks=yes' ]
                 elif opts.valgrind_tool == 'memcheck':
-                    cmd += [ '--xml=yes', '--xml-file=' + path_to_platform(valgrind_output) ]
+                    cmd += ['--xml=yes', f'--xml-file={path_to_platform(valgrind_output)}']
                 else:
                     raise Exception('invalid valgrind tool %r' % opts.valgrind_tool)
                 cmd += [ path_to_platform(os.path.abspath(opts.duk)) ]
@@ -533,6 +537,7 @@ def execute_ecmascript_testcase(res, data, name, polyfills):
                 print('Killing testcase process due to timeout (%d seconds)' % timeout_sec)
                 res['timeout'] = True
                 p.kill()
+
             timer = Timer(timeout_sec, kill_proc, [proc])
 
             try:
@@ -585,20 +590,12 @@ def interpret_test_result(doc, expect):
     if doc['stdout'] != expect:
         errors.append('expect-mismatch')
         success = False
-    if doc['returncode'] != 0:
-        if meta.get('intended_uncaught', False):
-            # Test case is intended to throw an uncaught error.  This is
-            # necessary to test some errors that occur at the program level.
-            pass
-        else:
-            errors.append('returncode-nonzero')
-            success = False
-    if doc['stderr'] != '':
-        if meta.get('intended_uncaught', False):
-            pass
-        else:
-            errors.append('stderr-nonempty')
-            success = False
+    if doc['returncode'] != 0 and not meta.get('intended_uncaught', False):
+        errors.append('returncode-nonzero')
+        success = False
+    if doc['stderr'] != '' and not meta.get('intended_uncaught', False):
+        errors.append('stderr-nonempty')
+        success = False
     if doc['timeout']:
         errors.append('exec-timeout')
     if known_meta is not None:
@@ -622,10 +619,7 @@ def print_summary(doc):
     meta = doc['metadata']
 
     def fmt_time(x):
-        if x >= 60:
-            return '%.1f m' % (float(x) / 60.0)
-        else:
-            return '%.1f s' % float(x)
+        return '%.1f m' % (float(x) / 60.0) if x >= 60 else '%.1f s' % float(x)
 
     def fmt_size(x):
         if x < 1024 * 1024:
@@ -640,7 +634,7 @@ def print_summary(doc):
     print_diff = True  # print diff if it is nonzero
 
     test_time = fmt_time(doc['duration'])
-    test_time = '[%s]' % (test_time.rjust(6))
+    test_time = f'[{test_time.rjust(6)}]'
 
     if doc['skipped']:
         test_result = 'SKIPPED'
@@ -678,38 +672,35 @@ def print_summary(doc):
 
     if doc.has_key('massif_peak_heap_bytes'):
         tmp = []
-        tmp += [ '%s heap' % fmt_size(doc['massif_peak_heap_bytes']) ]
+        tmp += [f"{fmt_size(doc['massif_peak_heap_bytes'])} heap"]
         #tmp += [ '%s stack' % fmt_size(doc['massif_peak_stack_bytes']) ]
-        parts += [ '[%s]' % (', '.join(tmp).rjust(14)) ]
+        parts += [f"[{', '.join(tmp).rjust(14)}]"]
 
     if doc.has_key('valgrind_tool'):
-        parts += [ grey('[%s]' % doc['valgrind_tool']) ]
+        parts += [grey(f"[{doc['valgrind_tool']}]")]
 
     parts += issues
 
     print(' '.join(parts))
 
-    if doc['stderr'] != '' and not meta.get('intended_uncaught', False):
-        if True:
-            print('- Test wrote to stderr:')
-            stderr_lines = parse_lines(doc['stderr'])
-            stderr_lines = clip_lines(stderr_lines, 0, opts.clip_lines, opts.clip_columns)
-            stderr_lines = indent_lines(stderr_lines, 4)
-            sys.stdout.write(combine_lines(stderr_lines))
-        else:
-            pass
-
-    if doc['diff_expect'] != '' and print_diff:
-        if True:
-            print('- Diff to expected result:')
-            skip = 2  # skip a few uninteresting diff lines by default
-            if windows: skip = 0  # but not 'fc'
-            diff_lines = parse_lines(doc['diff_expect'])
-            diff_lines = clip_lines(diff_lines, skip, skip + opts.clip_lines, opts.clip_columns)
-            diff_lines = indent_lines(diff_lines, 4)
-            sys.stdout.write(combine_lines(diff_lines))
-        else:
-            pass
+    if (
+        doc['stderr'] != ''
+        and not meta.get('intended_uncaught', False)
+        and True
+    ):
+        print('- Test wrote to stderr:')
+        stderr_lines = parse_lines(doc['stderr'])
+        stderr_lines = clip_lines(stderr_lines, 0, opts.clip_lines, opts.clip_columns)
+        stderr_lines = indent_lines(stderr_lines, 4)
+        sys.stdout.write(combine_lines(stderr_lines))
+    if doc['diff_expect'] != '' and print_diff and True:
+        print('- Diff to expected result:')
+        skip = 2  # skip a few uninteresting diff lines by default
+        if windows: skip = 0  # but not 'fc'
+        diff_lines = parse_lines(doc['diff_expect'])
+        diff_lines = clip_lines(diff_lines, skip, skip + opts.clip_lines, opts.clip_columns)
+        diff_lines = indent_lines(diff_lines, 4)
+        sys.stdout.write(combine_lines(diff_lines))
 
 #
 #  Main program.
@@ -793,8 +784,7 @@ def main():
 
     # Initialize result object, filling fields with defaults so that calling
     # code can (at least mostly) rely on all fields being present.
-    res = {}
-    res['testcase_file'] = os.path.abspath(testcase_filename)
+    res = {'testcase_file': os.path.abspath(testcase_filename)}
     res['testcase_name'] = name
     res['expect'] = expect
     res['metadata'] = meta
@@ -831,9 +821,6 @@ def main():
 
         if not res['success']:
             exitcode = 1
-    else:
-        pass
-
     # Write out requested output files: test result JSON, test raw
     # stdout/stderr, etc.
     if opts.output_result is not None:

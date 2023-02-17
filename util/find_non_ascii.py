@@ -8,11 +8,9 @@
 import os, sys
 
 def main():
-    f = open(sys.argv[1], 'rb')
-    data = f.read()
-    f.close()
-
-    for linenum, linedata in enumerate(data.split('\n')):
+    with open(sys.argv[1], 'rb') as f:
+        data = f.read()
+    for linedata in data.split('\n'):
         non_ascii = False
         for i in xrange(len(linedata)):
             x = ord(linedata[i])

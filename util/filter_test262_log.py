@@ -27,12 +27,7 @@ def main():
         if len(line) > 1 and line[-1] == '\n':
             line = line[:-1]
 
-        # Skip success cases
-
-        skip = False
-        for sk in skipstrings:
-            if sk in line:
-                skip = True
+        skip = any(sk in line for sk in skipstrings)
         if skip:
             continue
 
@@ -59,13 +54,13 @@ def main():
                     continue
                 if kn.has_key('diagnosed'):
                     tofix_count += 1
-                    diagnosed_errors.append(line + '   // diagnosed: ' + kn['diagnosed'])
+                    diagnosed_errors.append(f'{line}   // diagnosed: ' + kn['diagnosed'])
                 elif kn.has_key('knownissue'):
                     # Don't bump tofix_count, as testcase expected result is not certain
-                    known_errors.append(line + '   // KNOWN: ' + kn['knownissue'])
+                    known_errors.append(f'{line}   // KNOWN: ' + kn['knownissue'])
                 else:
                     tofix_count += 1
-                    unknown_errors.append(line + '   // ??? (rule matches)')
+                    unknown_errors.append(f'{line}   // ??? (rule matches)')
                 kn['used'] = True  # mark rule used
                 matched = True
                 break
@@ -98,11 +93,11 @@ def main():
     print('')
     for kn in known_issues:
         if not kn.has_key('used'):
-            print('WARNING: unused rule: ' + json.dumps(kn))
+            print(f'WARNING: unused rule: {json.dumps(kn)}')
 
     # Used by testclient
 
-    if len(unknown_errors) > 0 or len(other_errors) > 0:
+    if unknown_errors or other_errors:
         print('TEST262 FAILED')
     elif len(known_errors) > 0 or len(diagnosed_errors) > 0:
         # Known and diagnosed errors don't indicate test failure
@@ -114,8 +109,8 @@ def main():
     # To fix count
 
     print('')
-    print('KNOWN ISSUE COUNT: ' + str(len(known_errors)))
-    print('TO-FIX COUNT: ' + str(tofix_count))
+    print(f'KNOWN ISSUE COUNT: {len(known_errors)}')
+    print(f'TO-FIX COUNT: {str(tofix_count)}')
     print('  = test case failures which need fixing (Duktape bugs, uninvestigated)')
 
 

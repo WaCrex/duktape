@@ -12,10 +12,9 @@ if __name__ == '__main__':
 			'bg-c.png', 'bg-ecmascript.png',
 			'bg-c-2.png', 'bg-ecmascript-2.png'
 			]:
-		f = open(image, 'rb')
-		data = f.read()
-		f.close()
-		data_uri = 'data:image/png;base64,' + base64.b64encode(data)
+		with open(image, 'rb') as f:
+			data = f.read()
+		data_uri = f'data:image/png;base64,{base64.b64encode(data)}'
 		print('')
-		print('%s -> %s' % (image, data_uri))
+		print(f'{image} -> {data_uri}')
 		print('')

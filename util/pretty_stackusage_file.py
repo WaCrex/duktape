@@ -11,7 +11,7 @@ def main():
         for line in f:
             m = re_line.match(line)
             assert(m is not None)
-            t = [ int(m.group(2)), m.group(1), m.group(3) ]
+            t = [int(m[2]), m[1], m[3]]
             lines.append(t)
 
         lines.sort()

@@ -25,13 +25,13 @@ def main():
         # Note: duk-low doesn't log oldsize (uses -1 instead)
 
         if parts[0] == 'A':
-            if parts[1] != 'NULL' and parts[1] != 'FAIL':
+            if parts[1] not in ['NULL', 'FAIL']:
                 allocated += long(parts[2])
         elif parts[0] == 'F':
             allocated -= long(parts[2])
         elif parts[0] == 'R':
             allocated -= long(parts[2])
-            if parts[3] != 'NULL' and parts[3] != 'FAIL':
+            if parts[3] not in ['NULL', 'FAIL']:
                 allocated += long(parts[4])
         print(allocated)
 

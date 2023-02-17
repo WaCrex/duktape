@@ -55,11 +55,11 @@ def main():
     if opts.output is not None and os.path.exists(opts.output):
         os.unlink(opts.output)
 
-    for i in xrange(opts.count):
+    for _ in xrange(opts.count):
         time.sleep(opts.sleep)
 
         cmd = []
-        cmd = cmd + args
+        cmd += args
         #print(repr(cmd))
 
         if opts.kill_timeout is not None:
@@ -115,14 +115,8 @@ def main():
         time_this = time_end - time_start
         #print(i, time_this)
 
-        if time_min is None:
-            time_min = time_this
-        else:
-            time_min = min(time_min, time_this)
-        if time_max is None:
-            time_max = time_this
-        else:
-            time_max = max(time_max, time_this)
+        time_min = time_this if time_min is None else min(time_min, time_this)
+        time_max = time_this if time_max is None else max(time_max, time_this)
         time_sum += time_this
 
         if opts.verbose:

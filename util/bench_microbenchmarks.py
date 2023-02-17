@@ -68,7 +68,7 @@ def run_one(testfile):
     for eng in engines:
         #sys.stdout.write(' %s' % eng)
         #sys.stdout.flush()
-        testpath = testfile + '.' + eng['ext']
+        testpath = f'{testfile}.' + eng['ext']
         cmd = [
             'python2',
             TIME_MULTI,
@@ -127,7 +127,7 @@ def main():
     filenames = []
     for fn in sys.argv[1:]:
         t = os.path.splitext(fn)[0]
-        if os.path.basename(t)[0:5] != 'test-':
+        if os.path.basename(t)[:5] != 'test-':
             continue
         if t not in filenames:
             filenames.append(t)
@@ -163,7 +163,7 @@ def main():
     print('')
     with open(BENCH_OUT, 'wb') as f:
         f.write(json.dumps(doc, indent=4))
-        print('Wrote output JSON to %s' % BENCH_OUT)
+        print(f'Wrote output JSON to {BENCH_OUT}')
 
 if __name__ == '__main__':
     main()

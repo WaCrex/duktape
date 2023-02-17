@@ -11,16 +11,8 @@ for i in xrange(65536 + 10):
     approx1 = int(math.floor(temp) - 3)
     approx2 = int(math.floor(temp + 3))
     for j in xrange(approx1, approx2 + 1):
-        if i*j >= (1 << 32):
-            exact = True
-        else:
-            exact = False
-
-        if i > limit / j:
-            check = True
-        else:
-            check = False
-
+        exact = i*j >= 1 << 32
+        check = i > limit / j
         #print(i, j, exact, check)
         if exact != check:
             print('inexact', i, j)

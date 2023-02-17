@@ -1,16 +1,15 @@
 import json
 
 def build():
-    obj = {}
-    obj['key1'] = 'foo'
-    obj['key2'] = 'bar'
-    obj['key3'] = 'quux'
-    obj['key4'] = 'baz'
-    obj['key5'] = 'quuux'
-    obj['key6'] = [ 'foo', 'bar', 'quux', 'baz', 'quuux' ]
-    obj['key7'] = [ None, None, True, 123.456, 1e200, {}, {}, {} ]
-
-    return obj
+    return {
+        'key1': 'foo',
+        'key2': 'bar',
+        'key3': 'quux',
+        'key4': 'baz',
+        'key5': 'quuux',
+        'key6': ['foo', 'bar', 'quux', 'baz', 'quuux'],
+        'key7': [None, None, True, 123.456, 1e200, {}, {}, {}],
+    }
 
 def test():
     obj = build()

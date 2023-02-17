@@ -13,10 +13,8 @@ add_proto = False
 add_props = True
 
 def main():
-    f = open(sys.argv[1], 'rb')
-    heapdump = json.loads(f.read())
-    f.close()
-
+    with open(sys.argv[1], 'rb') as f:
+        heapdump = json.loads(f.read())
     objs = {}
     for obj in heapdump['heapObjects']:
         objs[obj['ptr']['HEAPPTR']] = obj
@@ -24,9 +22,7 @@ def main():
     f = sys.stdout
 
     def is_obj(x):
-        if not objs.has_key(x):
-            return False
-        return objs[x]['type'] == 2
+        return objs[x]['type'] == 2 if objs.has_key(x) else False
 
     def emit(x, y):
         # XXX: only emit edges between objects (not strings or buffers)

@@ -37,12 +37,9 @@ def main():
     tmp = []
     for i in sys.argv[1:]:
         objfile = i
-        if i.endswith('.strip'):
-            objname = i[:-6]
-        else:
-            objname = i
+        objname = i[:-6] if i.endswith('.strip') else i
         base, ext = os.path.splitext(objname)
-        srcfile = base + '.c'
+        srcfile = f'{base}.c'
 
         objsize, objbpl, srcsize, srclines, srcbpl = process(srcfile, objfile)
         srcbase = os.path.basename(srcfile)

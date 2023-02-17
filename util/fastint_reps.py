@@ -8,12 +8,12 @@ import struct
 import math
 
 def isFastint(x):
-    if math.floor(x) == x and \
-       x >= -(2**47) and \
-       x < (2**47) and \
-       (x != 0 or math.copysign(1.0, x) == 1.0):  # Negative zero is a bit tricky
-        return True
-    return False
+    return (
+        math.floor(x) == x
+        and x >= -(2**47)
+        and x < (2**47)
+        and (x != 0 or math.copysign(1.0, x) == 1.0)
+    )
 
 def stringRep(x):
     tmp = struct.pack('>d', x)

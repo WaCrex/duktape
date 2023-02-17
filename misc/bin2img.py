@@ -2,10 +2,8 @@ import sys
 from PIL import Image
 
 def main():
-    f = open(sys.argv[1], 'rb')
-    data = f.read()
-    f.close()
-
+    with open(sys.argv[1], 'rb') as f:
+        data = f.read()
     use_bits = True
 
     BYTESPERLINE = 128
@@ -20,8 +18,8 @@ def main():
 
     img = Image.new('RGBA', (width, height))
     for y in xrange(height):
-        if use_bits:
-            for x in xrange(width):
+        for x in xrange(width):
+            if use_bits:
                 idx = y * BYTESPERLINE + (x / 8)
                 bitidx = x % 8  # 0 = topmost
 
@@ -30,13 +28,9 @@ def main():
                 else:
                     v = ord(data[idx])
                     v = (v >> (7 - bitidx)) & 0x01
-                    if v > 0:
-                        v = 0
-                    else:
-                        v = 255
+                    v = 0 if v > 0 else 255
                     img.putpixel((x,y), (v, v, v, 255))
-        else:
-            for x in xrange(width):
+            else:
                 idx = y * BYTESPERLINE + x
 
                 if idx >= len(data):

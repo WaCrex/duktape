@@ -6,12 +6,10 @@ def xutf8len(x):
     if x < 0x10000: return 3
     if x < 0x200000: return 4
     if x < 0x4000000: return 5
-    if x < 0x80000000: return 6
-    return 7
+    return 6 if x < 0x80000000 else 7
 
 def enci32(x):
-    if x >= 0: return x
-    return (-x) * 2 + 1
+    return x if x >= 0 else (-x) * 2 + 1
 
 def skipadjust(x):
     if x >= 0: return 0
@@ -36,10 +34,7 @@ def binsearch(numbytes):
             b = c
         else:
             a = c
-    if skipadjust(a) == numbytes:
-        return a
-    else:
-        return b
+    return a if skipadjust(a) == numbytes else b
 
 def closed1(skip):
     if skip >= 0: return skip

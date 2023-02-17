@@ -69,9 +69,7 @@ def unicode_to_bytes(x):
 def bytes_to_unicode(x):
     if isinstance(x, unicode):
         return x
-    tmp = u''
-    for c in x:
-        tmp += unichr(ord(c))
+    tmp = u''.join(unichr(ord(c)) for c in x)
     assert(isinstance(tmp, unicode))
     return tmp
 
@@ -145,22 +143,19 @@ def metadata_lookup_object(meta, obj_id):
     return meta['_objid_to_object'][obj_id]
 
 def metadata_lookup_object_and_index(meta, obj_id):
-    for i,t in enumerate(meta['objects']):
-        if t['id'] == obj_id:
-            return t, i
-    return None, None
+    return next(
+        ((t, i) for i, t in enumerate(meta['objects']) if t['id'] == obj_id),
+        (None, None),
+    )
 
 def metadata_lookup_property(obj, key):
-    for p in obj['properties']:
-        if p['key'] == key:
-            return p
-    return None
+    return next((p for p in obj['properties'] if p['key'] == key), None)
 
 def metadata_lookup_property_and_index(obj, key):
-    for i,t in enumerate(obj['properties']):
-        if t['key'] == key:
-            return t, i
-    return None, None
+    return next(
+        ((t, i) for i, t in enumerate(obj['properties']) if t['key'] == key),
+        (None, None),
+    )
 
 # Remove disabled objects and properties.
 def metadata_remove_disabled(meta, active_opts):
@@ -188,10 +183,10 @@ def metadata_remove_disabled(meta, active_opts):
 
     for o in meta['objects']:
         if o.get('disable', False):
-            logger.debug('Remove disabled object: %s' % o['id'])
+            logger.debug(f"Remove disabled object: {o['id']}")
             count_disabled_object += 1
         elif not present_if_check(o):
-            logger.debug('Removed object not needed in active configuration: %s' % o['id'])
+            logger.debug(f"Removed object not needed in active configuration: {o['id']}")
             count_notneeded_object += 1
         else:
             objlist.append(o)
@@ -199,10 +194,12 @@ def metadata_remove_disabled(meta, active_opts):
         props = []
         for p in o['properties']:
             if p.get('disable', False):
-                logger.debug('Remove disabled property: %s, object: %s' % (p['key'], o['id']))
+                logger.debug(f"Remove disabled property: {p['key']}, object: {o['id']}")
                 count_disabled_property += 1
             elif not present_if_check(p):
-                logger.debug('Removed property not needed in active configuration: %s, object: %s' % (p['key'], o['id']))
+                logger.debug(
+                    f"Removed property not needed in active configuration: {p['key']}, object: {o['id']}"
+                )
                 count_notneeded_property += 1
             else:
                 props.append(p)
@@ -233,8 +230,9 @@ def metadata_delete_dangling_references_to_object(meta, obj_id):
             # XXX: Should empty accessor (= no getter, no setter) be deleted?
             # If so, beware of shorthand.
             if delprop:
-                logger.debug('Deleted property %s of object %s, points to deleted object %s' % \
-                             (p['key'], o['id'], obj_id))
+                logger.debug(
+                    f"Deleted property {p['key']} of object {o['id']}, points to deleted object {obj_id}"
+                )
             else:
                 new_p.append(p)
         o['properties'] = new_p
@@ -250,12 +248,12 @@ def metadata_merge_user_objects(meta, user_meta):
 
     for o in user_meta.get('objects', []):
         if o.get('disable', False):
-            logger.debug('Skip disabled object: %s' % o['id'])
+            logger.debug(f"Skip disabled object: {o['id']}")
             continue
         targ, targ_idx = metadata_lookup_object_and_index(meta, o['id'])
 
         if o.get('delete', False):
-            logger.debug('Delete object: %s' % targ['id'])
+            logger.debug(f"Delete object: {targ['id']}")
             if targ is None:
                 raise Exception('Cannot delete object %s which doesn\'t exist' % o['id'])
             meta['objects'].pop(targ_idx)
@@ -263,7 +261,7 @@ def metadata_merge_user_objects(meta, user_meta):
             continue
 
         if o.get('replace', False):
-            logger.debug('Replace object %s' % o['id'])
+            logger.debug(f"Replace object {o['id']}")
             if targ is None:
                 logger.warning('object to be replaced doesn\'t exist, append new object')
                 meta['objects'].append(o)
@@ -272,9 +270,9 @@ def metadata_merge_user_objects(meta, user_meta):
             continue
 
         if o.get('add', False) or not o.get('modify', False):  # 'add' is the default
-            logger.debug('Add object %s' % o['id'])
+            logger.debug(f"Add object {o['id']}")
             if targ is not None:
-                raise Exception('Cannot add object %s which already exists' % o['id'])
+                raise Exception(f"Cannot add object {o['id']} which already exists")
             meta['objects'].append(o)
             continue
 
@@ -289,24 +287,24 @@ def metadata_merge_user_objects(meta, user_meta):
             targ[k] = o[k]
         for p in o.get('properties', []):
             if p.get('disable', False):
-                logger.debug('Skip disabled property: %s' % p['key'])
+                logger.debug(f"Skip disabled property: {p['key']}")
                 continue
             prop = None
             prop_idx = None
             prop, prop_idx = metadata_lookup_property_and_index(targ, p['key'])
-            if prop is not None:
-                if p.get('delete', False):
-                    logger.debug('Delete property %s of %s' % (p['key'], o['id']))
-                    targ['properties'].pop(prop_idx)
-                else:
-                    logger.debug('Replace property %s of %s' % (p['key'], o['id']))
-                    targ['properties'][prop_idx] = p
-            else:
+            if prop is None:
                 if p.get('delete', False):
                     logger.debug('Deleting property %s of %s: doesn\'t exist, nop' % (p['key'], o['id']))
                 else:
-                    logger.debug('Add property %s of %s' % (p['key'], o['id']))
+                    logger.debug(f"Add property {p['key']} of {o['id']}")
                     targ['properties'].append(p)
+
+            elif p.get('delete', False):
+                logger.debug(f"Delete property {p['key']} of {o['id']}")
+                targ['properties'].pop(prop_idx)
+            else:
+                logger.debug(f"Replace property {p['key']} of {o['id']}")
+                targ['properties'][prop_idx] = p
 
 # Replace 'symbol' keys and values with encoded strings.
 def format_symbol(sym):
@@ -390,10 +388,7 @@ def metadata_prepare_objects_bidx(meta):
 
     # Append remaining objects.
     for obj in objlist:
-        if obj.get('bidx_used', False):
-            # Already in meta['objects'].
-            pass
-        else:
+        if not obj.get('bidx_used', False):
             meta['objects'].append(obj)
 
 # Normalize metadata property shorthand.  For example, if a property value
@@ -455,26 +450,34 @@ def metadata_normalize_shorthand(meta):
     def decodeGetterShorthand(key, funprop):
         assert(funprop['value']['type'] == 'accessor')
         val = funprop['value']
-        if not val.has_key('getter'):
-            return None
-        return addAccessor(funprop,
-                           val['getter_magic'],
-                           val['getter_nargs'],
-                           val.get('getter_length', 0),
-                           key,
-                           val['getter'])
+        return (
+            addAccessor(
+                funprop,
+                val['getter_magic'],
+                val['getter_nargs'],
+                val.get('getter_length', 0),
+                key,
+                val['getter'],
+            )
+            if val.has_key('getter')
+            else None
+        )
 
     def decodeSetterShorthand(key, funprop):
         assert(funprop['value']['type'] == 'accessor')
         val = funprop['value']
-        if not val.has_key('setter'):
-            return None
-        return addAccessor(funprop,
-                           val['setter_magic'],
-                           val['setter_nargs'],
-                           val.get('setter_length', 0),
-                           key,
-                           val['setter'])
+        return (
+            addAccessor(
+                funprop,
+                val['setter_magic'],
+                val['setter_nargs'],
+                val.get('setter_length', 0),
+                key,
+                val['setter'],
+            )
+            if val.has_key('setter')
+            else None
+        )
 
     def decodeStructuredValue(val):
         logger.debug('Decode structured value: %r' % val)
@@ -503,7 +506,7 @@ def metadata_normalize_shorthand(meta):
         props = obj['properties']
         keys = sorted(val.keys())
         for k in keys:
-            logger.debug('Decode property %s' % k)
+            logger.debug(f'Decode property {k}')
             prop = { 'key': k, 'value': decodeStructuredValue(val[k]), 'attributes': 'wec' }
             props.append(prop)
 
@@ -559,7 +562,9 @@ def metadata_normalize_shorthand(meta):
                 prop = clonePropShared(val)
                 prop['value'] = subval
                 repl_props.append(prop)
-                logger.debug('Decoded structured shorthand for object %s, property %s' % (obj['id'], val['key']))
+                logger.debug(
+                    f"Decoded structured shorthand for object {obj['id']}, property {val['key']}"
+                )
             elif isinstance(val['value'], dict) and val['value']['type'] == 'buffer':
                 # Duktape buffer type not yet supported.
                 raise Exception('Buffer type not yet supported for builtins: %r' % val)
@@ -596,11 +601,8 @@ def metadata_normalize_property_attributes(meta):
             # If missing, set default attributes.
             attrs = orig_attrs
             if attrs is None:
-                if is_accessor:
-                    attrs = 'ca'  # accessor default is configurable
-                else:
-                    attrs = 'wc'  # default is writable, configurable
-                logger.debug('Defaulted attributes of %s/%s to %s' % (o['id'], p['key'], attrs))
+                attrs = 'ca' if is_accessor else 'wc'
+                logger.debug(f"Defaulted attributes of {o['id']}/{p['key']} to {attrs}")
 
             # Decode flags to normalize their order in the end.
             writable = 'w' in attrs
@@ -610,7 +612,9 @@ def metadata_normalize_property_attributes(meta):
 
             # Force 'accessor' attribute for accessors.
             if is_accessor and not accessor:
-                logger.debug('Property %s is accessor but has no "a" attribute, add attribute' % p['key'])
+                logger.debug(
+                    f"""Property {p['key']} is accessor but has no "a" attribute, add attribute"""
+                )
                 accessor = True
 
             # Normalize order and write back.
@@ -627,7 +631,6 @@ def metadata_normalize_property_attributes(meta):
 
             if orig_attrs != attrs:
                 logger.debug('Updated attributes of %s/%s from %r to %r' % (o['id'], p['key'], orig_attrs, attrs))
-                pass
 
 # Normalize ROM property attributes.
 def metadata_normalize_rom_property_attributes(meta):
@@ -645,14 +648,10 @@ def metadata_normalize_ram_function_names(meta):
     for o in meta['objects']:
         if not o.get('callable', False):
             continue
-        name_prop = None
-        for p in o['properties']:
-            if p['key'] == 'name':
-                name_prop = p
-                break
+        name_prop = next((p for p in o['properties'] if p['key'] == 'name'), None)
         if name_prop is None:
             num_added += 1
-            logger.debug('Adding missing "name" property for function %s' % o['id'])
+            logger.debug(f"""Adding missing "name" property for function {o['id']}""")
             o['properties'].append({ 'key': 'name', 'value': '', 'attributes': 'c' })
 
     if num_added > 0:
@@ -671,10 +670,7 @@ def metadata_add_ram_filtered_object_list(meta):
     objlist = []
     for o in meta['objects']:
         keep = o.get('bidx_used', False)
-        if o.has_key('native') and not o.has_key('bidx'):
-            # Handled inline by run-time init code
-            pass
-        else:
+        if not o.has_key('native') or o.has_key('bidx'):
             # Top level object
             keep = True
         if keep:
@@ -690,14 +686,10 @@ def metadata_add_ram_filtered_object_list(meta):
 # is critical for ROM builtins because all property keys etc must also
 # be in ROM.
 def metadata_normalize_missing_strings(meta, user_meta):
-    # We just need plain strings here.
-    strs_have = {}
-    for s in meta['strings']:
-        strs_have[s['str']] = True
-
+    strs_have = {s['str']: True for s in meta['strings']}
     # For ROM builtins all the strings must be in the strings list,
     # so scan objects for any strings not explicitly listed in metadata.
-    for idx, obj in enumerate(meta['objects']):
+    for obj in meta['objects']:
         for prop in obj['properties']:
             key = prop['key']
             if not strs_have.get(key):
@@ -851,7 +843,7 @@ def metadata_remove_orphan_objects(meta):
         deleted = False
         for i,o in enumerate(meta['objects']):
             if not reachable.has_key(o['id']):
-                logger.debug('object %s not reachable, dropping' % o['id'])
+                logger.debug(f"object {o['id']} not reachable, dropping")
                 meta['objects'].pop(i)
                 deleted = True
                 num_deleted += 1
@@ -868,7 +860,7 @@ def metadata_add_string_define_names(strlist, special_defs):
         v = s['str']
 
         if special_defs.has_key(v):
-            s['define'] = 'DUK_STRIDX_' + special_defs[v]
+            s['define'] = f'DUK_STRIDX_{special_defs[v]}'
             continue
 
         if len(v) >= 1 and v[0] == '\x82':
@@ -887,11 +879,8 @@ def metadata_add_string_define_names(strlist, special_defs):
 
 # Add a 'stridx_used' flag for strings which need a stridx.
 def metadata_add_string_used_stridx(strlist, used_stridx_meta):
-    defs_needed = {}
     defs_found = {}
-    for s in used_stridx_meta['used_stridx_defines']:
-        defs_needed[s] = True
-
+    defs_needed = {s: True for s in used_stridx_meta['used_stridx_defines']}
     # strings whose define is referenced
     for s in strlist:
         if s.has_key('define') and defs_needed.has_key(s['define']):
@@ -910,7 +899,7 @@ def metadata_add_string_used_stridx(strlist, used_stridx_meta):
     defs_found['DUK_STRIDX_TO_TOK'] = True
     for k in sorted(defs_needed.keys()):
         if not defs_found.has_key(k):
-            raise Exception('source code needs define %s not provided by strings' % repr(k))
+            raise Exception(f'source code needs define {repr(k)} not provided by strings')
 
 # Merge duplicate strings in string metadata.
 def metadata_merge_string_entries(strlist):
@@ -951,11 +940,7 @@ def metadata_order_builtin_strings(input_strlist, keyword_list, strip_unused_str
 
     tmp_strs = []
     for s in copy.deepcopy(input_strlist):
-        if not s.get('stridx_used', False):
-            # Drop strings which are not actually needed by src-input/*.(c|h).
-            # Such strings won't be in heap->strs[] or ROM legacy list.
-            pass
-        else:
+        if s.get('stridx_used', False):
             tmp_strs.append(s)
 
     # The reserved word list must match token order in duk_lexer.h
@@ -989,10 +974,7 @@ def metadata_order_builtin_strings(input_strlist, keyword_list, strip_unused_str
             # XXX: unused path now, because keywords are "plucked out"
             # explicitly.
             assert(not req8)
-            if s.get('future_reserved_word_strict', False):
-                return 4
-            else:
-                return 3
+            return 4 if s.get('future_reserved_word_strict', False) else 3
         elif req8:
             return 1
         else:
@@ -1009,7 +991,7 @@ def metadata_order_builtin_strings(input_strlist, keyword_list, strip_unused_str
 
     for idx,s in enumerate(strs):
         if req8Bit(s) and i >= 256:
-            raise Exception('8-bit string index not satisfied: ' + repr(s))
+            raise Exception(f'8-bit string index not satisfied: {repr(s)}')
 
     return strs + keywords
 
@@ -1018,7 +1000,7 @@ def dump_metadata(meta, fn):
     tmp = json.dumps(recursive_bytes_to_strings(meta), indent=4)
     with open(fn, 'wb') as f:
         f.write(tmp)
-    logger.debug('Wrote metadata dump to %s' % fn)
+    logger.debug(f'Wrote metadata dump to {fn}')
 
 # Main metadata loading function: load metadata from multiple sources,
 # merge and normalize, prepare various indexes etc.
@@ -1029,17 +1011,14 @@ def load_metadata(opts, rom=False, build_info=None, active_opts=None):
     with open(opts.objects_metadata, 'rb') as f:
         objects_metadata = recursive_strings_to_bytes(yaml.safe_load(f))
 
-    # Merge strings and objects metadata as simple top level key merge.
-    meta = {}
-    for k in objects_metadata.keys():
-        meta[k] = objects_metadata[k]
+    meta = {k: objects_metadata[k] for k in objects_metadata.keys()}
     for k in strings_metadata.keys():
         meta[k] = strings_metadata[k]
 
     # Add user objects.
     user_meta = {}
     for fn in opts.builtin_files:
-        logger.debug('Merging user builtin metadata file %s' % fn)
+        logger.debug(f'Merging user builtin metadata file {fn}')
         with open(fn, 'rb') as f:
             user_meta = recursive_strings_to_bytes(yaml.safe_load(f))
         metadata_merge_user_objects(meta, user_meta)
@@ -1209,11 +1188,7 @@ def load_metadata(opts, rom=False, build_info=None, active_opts=None):
 
     # Dump stats.
 
-    if rom:
-        meta_name = 'ROM'
-    else:
-        meta_name = 'RAM'
-
+    meta_name = 'ROM' if rom else 'RAM'
     count_add_ref = 0
     count_add_user = 0
     for s in meta['strings']:
@@ -1327,8 +1302,8 @@ def resolve_magic(elem, objid_to_bidx):
         return 0
     if isinstance(elem, (int, long)):
         v = int(elem)
-        if not (v >= -0x8000 and v <= 0x7fff):
-            raise Exception('invalid plain value for magic: %s' % repr(v))
+        if v < -0x8000 or v > 0x7FFF:
+            raise Exception(f'invalid plain value for magic: {repr(v)}')
         return v
     if not isinstance(elem, dict):
         raise Exception('invalid magic: %r' % elem)
@@ -1340,8 +1315,8 @@ def resolve_magic(elem, objid_to_bidx):
         return objid_to_bidx[v]
     elif elem['type'] == 'plain':
         v = elem['value']
-        if not (v >= -0x8000 and v <= 0x7fff):
-            raise Exception('invalid plain value for magic: %s' % repr(v))
+        if v < -0x8000 or v > 0x7FFF:
+            raise Exception(f'invalid plain value for magic: {repr(v)}')
         return v
     elif elem['type'] == 'math_onearg':
         return math_onearg_magic[elem['funcname']]
@@ -1361,11 +1336,19 @@ def resolve_magic(elem, objid_to_bidx):
 # Helper to find a property from a property list, remove it from the
 # property list, and return the removed property.
 def steal_prop(props, key, allow_accessor=True):
-    for idx,prop in enumerate(props):
-        if prop['key'] == key:
-            if not (isinstance(prop['value'], dict) and prop['value']['type'] == 'accessor') or allow_accessor:
-                return props.pop(idx)
-    return None
+    return next(
+        (
+            props.pop(idx)
+            for idx, prop in enumerate(props)
+            if prop['key'] == key
+            and (
+                not isinstance(prop['value'], dict)
+                or prop['value']['type'] != 'accessor'
+                or allow_accessor
+            )
+        ),
+        None,
+    )
 
 #
 #  RAM initialization data
@@ -1442,9 +1425,7 @@ class_names = [
     'Thread'
     # Remaining class names are not currently needed.
 ]
-class2num = {}
-for i,v in enumerate(class_names):
-    class2num[v] = i
+class2num = {v: i for i, v in enumerate(class_names)}
 
 # Map class name to a class number.
 def class_to_number(x):
@@ -1561,7 +1542,7 @@ def gen_ramstr_initdata_bitpacked(meta):
 
     if be._varuint_count > 0:
         logger.debug('Varuint distribution:')
-        logger.debug(json.dumps(be._varuint_dist[0:1024]))
+        logger.debug(json.dumps(be._varuint_dist[:1024]))
         logger.debug('Varuint encoding categories: %r' % be._varuint_cats)
         logger.debug('Varuint efficiency: %f bits/value' % (float(be._varuint_bits) / float(be._varuint_count)))
     res = be.getByteString()
@@ -1595,9 +1576,13 @@ def emit_header_stridx_defines(genc, meta):
     for idx,s in enumerate(strlist):
         genc.emitDefine(s['define'], idx, repr(s['str']))
         defname = s['define'].replace('_STRIDX','_HEAP_STRING')
-        genc.emitDefine(defname + '(heap)', 'DUK_HEAP_GET_STRING((heap),%s)' % s['define'])
+        genc.emitDefine(
+            f'{defname}(heap)', f"DUK_HEAP_GET_STRING((heap),{s['define']})"
+        )
         defname = s['define'].replace('_STRIDX', '_HTHREAD_STRING')
-        genc.emitDefine(defname + '(thr)', 'DUK_HTHREAD_GET_STRING((thr),%s)' % s['define'])
+        genc.emitDefine(
+            f'{defname}(thr)', f"DUK_HTHREAD_GET_STRING((thr),{s['define']})"
+        )
 
     idx_start_reserved = None
     idx_start_strict_reserved = None
@@ -1627,7 +1612,7 @@ def encode_property_flags(flags):
     nflags = 0
     if 'w' in flags:
         nflags += 1
-        res = res | PROPDESC_FLAG_WRITABLE
+        res |= PROPDESC_FLAG_WRITABLE
     if 'e' in flags:
         nflags += 1
         res = res | PROPDESC_FLAG_ENUMERABLE
@@ -1639,7 +1624,7 @@ def encode_property_flags(flags):
         res = res | PROPDESC_FLAG_ACCESSOR
 
     if nflags != len(flags):
-        raise Exception('unsupported flags: %s' % repr(flags))
+        raise Exception(f'unsupported flags: {repr(flags)}')
 
     return res
 
@@ -1648,6 +1633,7 @@ def gen_ramobj_initdata_for_object(meta, be, bi, string_to_stridx, natfunc_name_
     def _stridx(strval):
         stridx = string_to_stridx[strval]
         be.varuint(stridx)
+
     def _stridx_or_string(strval):
         stridx = string_to_stridx.get(strval)
         if stridx is not None:
@@ -1655,6 +1641,7 @@ def gen_ramobj_initdata_for_object(meta, be, bi, string_to_stridx, natfunc_name_
         else:
             be.varuint(0)
             bitpack_string(be, strval)
+
     def _natidx(native_name):
         natidx = natfunc_name_to_natidx[native_name]
         be.varuint(natidx)
@@ -1662,7 +1649,7 @@ def gen_ramobj_initdata_for_object(meta, be, bi, string_to_stridx, natfunc_name_
     class_num = class_to_number(bi['class'])
     be.varuint(class_num)
 
-    props = [x for x in bi['properties']]  # clone
+    props = list(bi['properties'])
 
     prop_proto = steal_prop(props, 'prototype')
     prop_constr = steal_prop(props, 'constructor')
@@ -1686,10 +1673,8 @@ def gen_ramobj_initdata_for_object(meta, be, bi, string_to_stridx, natfunc_name_
     if prop_length is not None:
         len_attrs = prop_length['attributes']
 
-    if len_attrs != LENGTH_PROPERTY_ATTRIBUTES:
-        # Attributes are assumed to be the same, except for Array.prototype.
-        if bi['class'] != 'Array':  # Array.prototype is the only one with this class
-            raise Exception('non-default length attribute for unexpected object')
+    if len_attrs != LENGTH_PROPERTY_ATTRIBUTES and bi['class'] != 'Array':
+        raise Exception('non-default length attribute for unexpected object')
 
     # For 'Function' classed objects, emit the native function stuff.
     # Unfortunately this is more or less a copy of what we do for

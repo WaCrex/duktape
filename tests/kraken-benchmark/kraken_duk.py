@@ -14,14 +14,13 @@ def parse_opts():
     for i in sys.argv[1:]:
         if opt is not None:
             if i[0] == '-':
-                raise Exception('invalid argument: ' + repr(i))
+                raise Exception(f'invalid argument: {repr(i)}')
             res.append(i)
             opt = None
+        elif i == '-f':
+            opt = i
         else:
-            if i == '-f':
-                opt = i
-            else:
-                raise Exception('invalid option: ' + repr(i))
+            raise Exception(f'invalid option: {repr(i)}')
     return res
 
 def main():
